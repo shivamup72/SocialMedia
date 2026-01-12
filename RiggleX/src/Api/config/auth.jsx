@@ -1,0 +1,169 @@
+import {LoginApi, RefreshTokenApi, CreateAccountApi} from './apiUrls';
+import axios from 'axios';
+import AsyncStorage1 from './AsyncStorage';
+////////////////  signUp ///////////////
+export const SignUpUser = formData => {
+  return new Promise((resolve, reject) => {
+    fetch(CreateAccountApi, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+      },
+      body: formData,
+    })
+      .then(async response => {
+        const contentType = response.headers.get('content-type');
+
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          console.error('Non-JSON response:', text);
+          throw new Error('Server returned an invalid response');
+        }
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          console.error('Sign Up failed:', data);
+          throw new Error(data.detail || data.message || 'Sign Up failed');
+        }
+
+        console.log('Sign Up successful:', data);
+        resolve(data);
+      })
+      .catch(error => {
+        console.error('Sign Up error:', error);
+        reject(error);
+      });
+  });
+};
+
+//////////////////
+
+export const verifyOTP = (email, otp) => {
+  return new Promise((resolve, reject) => {
+    if (!email || !otp) {
+      reject(new Error('Email and OTP are required'));
+      return;
+    }
+
+    fetch(LoginApi + 'verify_otp/', {
+      // Assuming the endpoint is '/verify_otp/'
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: email,
+        otp: otp,
+      }),
+    })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(
+            data.detail || data.message || 'OTP verification failed',
+          );
+        }
+        return data;
+      })
+      .then(res => resolve(res))
+      .catch(error => {
+        console.error('OTP verification error:', error);
+        reject(error);
+      });
+  });
+};
+
+export const loginUser = email => {
+  return new Promise((resolve, reject) => {
+    // const emailValue = typeof email === 'string' ? email : email?.email;
+
+    // if (!emailValue) {
+    //   reject(new Error('Email is required'));
+    //   return;
+    // }
+
+    // Check if the input is FormData or regular object
+    const isFormData = email instanceof FormData;
+
+    const fetchOptions = {
+      method: 'POST',
+      headers: {},
+      body: isFormData ? email : JSON.stringify(email),
+    };
+
+    if (!isFormData) {
+      fetchOptions.headers['Content-Type'] = 'application/json';
+    }
+    console.log('Login fetch options:', LoginApi);
+
+    fetch(LoginApi, fetchOptions)
+      .then(async response => {
+        let data;
+        try {
+          data = await response.json();
+        } catch (e) {
+          throw new Error('Invalid response from server');
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            data.detail || data.message || data.error || 'Login failed',
+          );
+        }
+        // console.log('Login response:', data);
+
+        resolve({...data, email});
+      })
+      .catch(error => {
+        // console.error('Login error:', error);
+        reject(error);
+      });
+  });
+};
+
+export const refreshToken = async refreshToken => {
+  try {
+    // console.log('Refresh token function called with token:', refreshToken);
+
+    if (!refreshToken) {
+      throw new Error('No refresh token provided');
+    }
+
+    const response = await fetch(RefreshTokenApi, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({refresh: refreshToken}),
+    });
+
+    // console.log('Refresh token response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      // console.error('Refresh token error response:', errorText);
+      // throw new Error('Token refresh failed: ' + (errorText || response.statusText));
+    }
+
+    const data = await response.json();
+    // console.log('Refresh token successful, new access token received');
+
+    if (data.access) {
+      const tokensFromApi = response.data.tokens;
+      const tokensString = JSON.stringify(tokensFromApi);
+      await AsyncStorage1.setItem('tokens', tokensString);
+
+      await AsyncStorage1.setItem('sessionId', data.access); // Removed JSON.stringify
+    }
+
+    if (data.refresh) {
+      await AsyncStorage1.setItem('Rreferesh_sessionId', data.refresh);
+    }
+
+    return data.access;
+  } catch (error) {
+    // console.error('Token refresh error in Auth:', error);
+    // throw error;
+  }
+};

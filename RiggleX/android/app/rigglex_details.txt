@@ -1,0 +1,3 @@
+alias -> Riggle X
+key password -> rigglex@2025
+alias password -> rigglex@2025
