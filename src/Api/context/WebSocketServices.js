@@ -137,6 +137,13 @@ export const WebSocketProvider = ({children}) => {
       }
 
       if (ws.current && ws.current.readyState !== WebSocket.CLOSED) {
+        try {
+          ws.current.onmessage = null;
+          ws.current.onclose = null;
+          ws.current.onerror = null;
+        } catch (e) {
+          console.warn('Error clearing old WebSocket handlers:', e);
+        }
         ws.current.close();
         ws.current = null;
       }
@@ -225,6 +232,7 @@ export const WebSocketProvider = ({children}) => {
           );
 
           ws.current = new WebSocket(wsUrl);
+          console.log('WebSocket: new connection created');
 
           ws.current.onopen = () => {
             console.log('WebSocket Connected for HubId:', HubId);
@@ -273,7 +281,7 @@ export const WebSocketProvider = ({children}) => {
               if (
                 parsed?.message !== 'Threads messages retrieved successfully'
               ) {
-                setLastMessage(parsed);
+                setLastMessage({...parsed, _ts: Date.now()});
               }
 
               try {

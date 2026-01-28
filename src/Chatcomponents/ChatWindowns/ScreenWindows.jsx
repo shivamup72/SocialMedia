@@ -5,7 +5,6 @@ import {
   StatusBar,
   Alert,
   Text,
-  FlatList,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +16,7 @@ import {
   Animated,
   SafeAreaView
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Windowsheader from './windowsHeader/Windowsheader';
@@ -32,12 +32,50 @@ import Toast from '../../Api/context/Toast';
 import ScreenView from '../../utils/ScreenView';
 import PinSvg from '../../assets/svg/PinSvg';
 import { RfH, RfW } from '../../utils/helper';
-import LinearGradient from 'react-native-linear-gradient';
+import DownArrowSvg from '../../assets/svg/DownArrowSvg';
 
 const ScreenWindows = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([]);
-  console.log(messages, 'messages state');
+  // WhatsApp-style: preprocess messages to insert date separators
+  const getDateLabel = (date) => {
+    const msgDate = new Date(date);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    const isToday = msgDate.toDateString() === today.toDateString();
+    const isYesterday = msgDate.toDateString() === yesterday.toDateString();
+    if (isToday) return 'Today';
+    if (isYesterday) return 'Yesterday';
+    // Format as e.g. 'Friday, January 23, 2026'
+    return msgDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
+  const messagesWithSeparators = React.useMemo(() => {
+    if (!messages || messages.length === 0) return [];
+    const result = [];
+    let lastDate = null;
+    for (let i = messages.length - 1; i >= 0; i--) { // reversed for inverted list
+      const msg = messages[i];
+      if (!msg.created_at) {
+        result.unshift(msg);
+        continue;
+      }
+      const msgDate = new Date(msg.created_at);
+      const dateStr = msgDate.toDateString();
+      if (lastDate !== dateStr) {
+        result.unshift({
+          _id: `date-separator-${dateStr}`,
+          type: 'date-separator',
+          label: getDateLabel(msg.created_at),
+        });
+        lastDate = dateStr;
+      }
+      result.unshift(msg);
+    }
+    return result;
+  }, [messages]);
+  // console.log(messages, 'messages state');
 
 
   const [page, setPage] = useState(1);
@@ -54,6 +92,7 @@ const ScreenWindows = ({ navigation, route }) => {
   const [MentionAll, setMentionAll] = useState([]);
   const flatListRef = useRef(null);
   const isScrolledUp = useRef(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const isFocused = useIsFocused();
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
@@ -276,13 +315,8 @@ const ScreenWindows = ({ navigation, route }) => {
       conversationValue,
     ],
   );
-
-
-  // console.log("recived new msg okkkkkkkkkk", messages);
-
-
+  // console.log("recived new msg okkkkkkkkkk", JSON.stringify(messages));
   const handleLoadMore = useCallback(() => {
-
     if (!loading && hasMore && messages.length > 0) {
       const nextPage = page + 1;
       setPage(nextPage);
@@ -293,6 +327,10 @@ const ScreenWindows = ({ navigation, route }) => {
 
   useEffect(() => {
     if (isFocused) {
+      // Clear selection on reload/refresh
+      setSelectedMessages([]);
+      setSelectedMessageStatus([]);
+      setReactionPickerState({ visible: false, message: null, positionY: 0 });
       if (isConnected && conversationId) {
         setPage(1);
         setMessages([]);
@@ -334,7 +372,7 @@ const ScreenWindows = ({ navigation, route }) => {
   // );
 
   useEffect(() => {
-    if (!lastMessage || !didMountRef.current) return;
+    if (!lastMessage) return;
     if (lastMessage?.type === 'error') {
       setInitialLoading(false);
       toastRef.current?.current?.show?.({
@@ -448,12 +486,28 @@ const ScreenWindows = ({ navigation, route }) => {
         const normalizedNewMessage = normalizeMessage(msg);
 
         setMessages(prevMessages => {
-          // Remove any optimistic message with the same content and senderName
-          const filtered = prevMessages.filter(
-            m =>
-              !(m.optimistic && m.content === normalizedNewMessage.content && (m.senderName === normalizedNewMessage.senderName || m.senderName === 'You'))
-          );
-          // Add new message and deduplicate by id
+          // Remove any optimistic message with the same tempId if present,
+          // else fallback to content/senderName and created_at within 2 seconds
+          const filtered = prevMessages.filter(m => {
+            if (m.optimistic) {
+              // Prefer tempId match if both have it
+              if (normalizedNewMessage.tempId && m.tempId && m.tempId === normalizedNewMessage.tempId) {
+                return false;
+              }
+              // Fallback: match by content, senderName, and created_at within 2 seconds
+              const createdA = new Date(m.created_at).getTime();
+              const createdB = new Date(normalizedNewMessage.created_at).getTime();
+              const timeDiff = Math.abs(createdA - createdB);
+              if (
+                m.content === normalizedNewMessage.content &&
+                (m.senderName === normalizedNewMessage.senderName || m.senderName === 'You') &&
+                timeDiff < 2000
+              ) {
+                return false;
+              }
+            }
+            return true;
+          });
           const allMessages = [normalizedNewMessage, ...filtered];
           const uniqueMessages = [];
           const seenIds = new Set();
@@ -477,7 +531,7 @@ const ScreenWindows = ({ navigation, route }) => {
         }
 
         if (!isScrolledUp.current && flatListRef.current) {
-          flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
         }
       } else {
         // console.log('Message conversationId/groupId does not match current, not adding to UI.');
@@ -499,15 +553,15 @@ const ScreenWindows = ({ navigation, route }) => {
     ) {
 
       if (action === 'receive_message_updated' && messageData) {
-        setMessages(prevMessages => {
-          const updatedMsg = normalizeMessage(messageData);
-          return prevMessages.map(msg =>
-            msg.id === updatedMsg.id
-              ? { ...msg, ...updatedMsg, starred: updatedMsg.starred, edited: true }
-              : msg
-          );
-        });
-      } else if (action === 'receive_messages_deleted' && messageData?.message_ids) {
+        const uniqueMessages = [];
+        const seenIds = new Set();
+        for (const msg of prevMessages) {
+          if (!seenIds.has(msg.id)) {
+            uniqueMessages.push(msg);
+            seenIds.add(msg.id);
+          }
+        }
+        return uniqueMessages;
         // console.log('Deleting messages with IDs:', messageData.message_ids);
         setMessages(prevMessages =>
           prevMessages.filter(msg => !messageData.message_ids.includes(String(msg.id)))
@@ -588,54 +642,38 @@ const ScreenWindows = ({ navigation, route }) => {
 
 
 
+
+    // Handle full message list
     if (lastMessage?.data?.messages) {
       const fetchedMessages = lastMessage?.data?.messages?.map(normalizeMessage);
-      // console.log('fetchedMessages 1 -=-=-=-------->',JSON.stringify(fetchedMessages),  '\n', '\n');
       setLoading(false);
       setInitialLoading(false);
-
       if (fetchedMessages?.length < PAGE_SIZE) {
         setHasMore(false);
       } else {
         setHasMore(true);
       }
+      setMessages(prevMessages => {
+        const messageMap = new Map();
+        prevMessages.forEach(msg => messageMap.set(msg.id, msg));
+        fetchedMessages.forEach(msg => messageMap.set(msg.id, msg));
+        return Array.from(messageMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      });
+      setNewMessage(false);
+    }
 
-      if (NewMessage) {
-        // After reload, do NOT preserve optimistic messages: only show confirmed messages from backend
-        setMessages(fetchedMessages);
-        setNewMessage(false);
-        return;
-      } else {
+    // Handle single new message
+    if (
+      (lastMessage?.action === 'receive_new_message' && lastMessage?.data) ||
+      (lastMessage?.action === 'receive_new_group_message' && lastMessage?.message)
+    ) {
+      const msg = lastMessage?.data?.message || lastMessage?.data || lastMessage?.message;
+      if (msg) {
+        const normalizedNewMessage = normalizeMessage(msg);
         setMessages(prevMessages => {
-          const messageMap = new Map(
-            prevMessages
-              .filter(msg => !msg.optimistic)
-              .map(msg => [msg.id, msg])
-          );
-
-          fetchedMessages.forEach(newMsg => {
-            const existingMsg = messageMap.get(newMsg.id);
-            if (existingMsg) {
-              messageMap.set(newMsg.id, {
-                ...existingMsg,
-                ...newMsg,
-                reactions: newMsg.reactions !== undefined ? newMsg.reactions : existingMsg.reactions,
-                status: newMsg.status !== undefined ? newMsg.status : existingMsg.status,
-                updated_at: newMsg.updated_at || existingMsg.updated_at,
-                edited: newMsg.edited !== undefined ? newMsg.edited : existingMsg.edited,
-                replies_count: newMsg.replies_count !== undefined ? newMsg.replies_count : existingMsg.replies_count,
-              });
-            } else {
-              messageMap.set(newMsg.id, {
-                ...newMsg,
-                status: newMsg.status || { status: 'sent' },
-                reactions: newMsg.reactions || [],
-                replies_count: newMsg.replies_count || 0,
-              });
-            }
-          });
-
-          return Array.from(messageMap.values());
+          const exists = prevMessages.some(m => m.id === normalizedNewMessage.id);
+          if (exists) return prevMessages;
+          return [normalizedNewMessage, ...prevMessages];
         });
       }
     }
@@ -711,6 +749,14 @@ const ScreenWindows = ({ navigation, route }) => {
   //   };
   // }, [lastMessage]);
 
+
+  // Auto-scroll to bottom when new message arrives and user is not scrolled up
+  useEffect(() => {
+    if (!isScrolledUp.current && flatListRef.current && messages.length > 0) {
+      flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [messages]);
+
   // console.log('Message data check  -=-=-=--------->', JSON.stringify(lastMessage?.action), '\n', '\n');
 
 
@@ -741,7 +787,9 @@ const ScreenWindows = ({ navigation, route }) => {
       }
 
 
-      const tempId = `temp-${Date.now()}`; // Create a temporary ID
+      // Create a more unique tempId: userId + timestamp + random string
+      const userIdPart = currentUser?.id ? String(currentUser.id) : 'nouser';
+      const tempId = `temp-${userIdPart}-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
       const optimisticMessage = {
         id: tempId, // Use the temporary ID
         content: data.content,
@@ -1032,31 +1080,58 @@ const ScreenWindows = ({ navigation, route }) => {
 
   const renderMessageItem = useCallback(
     ({ item }) => {
+      if (item.type === 'date-separator') {
+        return (
+          <View style={styles.dateSeparatorContainer}>
+            <Text style={styles.dateSeparatorText}>{item.label}</Text>
+          </View>
+        );
+      }
       const isSelected = Array.isArray(selectedMessages) && selectedMessages.some(m => m && m.id === item.id);
+      // Flatten style array to avoid nested arrays and ensure correct style application
+      let messageStyle = styles.messageWrapper;
+      if (item.pinned) {
+        messageStyle = [styles.messageWrapper, styles.pinnedMessage];
+      }
+      if (isSelected) {
+        messageStyle = [messageStyle, { backgroundColor: '#fff4e2ff', borderRadius: 12 }];
+      }
+      // Only allow first selection with long-press, then allow onPress for all
+      const toggleSelect = () => {
+        if (selectedMessages.length === 0) return; // Only allow onPress if selection mode is active
+        setSelectedMessages(prev => {
+          if (!prev || prev.length === 0) return prev;
+          if (prev.some(m => m && m.id === item.id)) {
+            if (prev.length === 1) {
+              setReactionPickerState({ visible: false, message: null, positionY: 0 });
+              return [];
+            }
+            return prev.filter(m => m && m.id !== item.id);
+          } else {
+            return [...prev, item];
+          }
+        });
+        setReplyCheck(false);
+        setSelectedMessageStatus(item?.status);
+      };
       return (
         <Pressable
-          onLongPress={e => handleLongPressMessage(e, item)}
-          onPress={() => {
-            if (selectedMessages.length === 0) return;
-            setSelectedMessages(prev => {
-              let newSelected;
-              if (prev.some(m => m.id === item.id)) {
-                newSelected = prev.filter(m => m.id !== item.id);
-              } else {
-                newSelected = [...prev, item];
-              }
-              console.log(newSelected.length, "newSelected.length=========>");
-
-              if (newSelected.length > 1 || newSelected.length === 0) {
-                setReactionPickerState({ visible: false, message: null, positionY: 0 });
-              }
-              return newSelected;
-            });
+          onLongPress={e => {
+            if (selectedMessages.length === 0) {
+              const { pageY } = e.nativeEvent;
+              const pickerYPosition = pageY - headerHeight - insets.top - 60;
+              setReactionPickerState({
+                visible: true,
+                message: item,
+                positionY: pickerYPosition,
+              });
+              setSelectedMessages([item]);
+              setReplyCheck(false);
+              setSelectedMessageStatus(item?.status);
+            }
           }}
-          style={[
-            item.pinned ? [styles.pinnedMessage, styles.messageWrapper] : styles.messageWrapper,
-            isSelected ? { backgroundColor: '#fff4e2ff', borderRadius: 12 } : null,
-          ]}
+          onPress={toggleSelect}
+          style={messageStyle}
           disabled={item?.is_system_message}
         >
           <MessageType
@@ -1079,7 +1154,12 @@ const ScreenWindows = ({ navigation, route }) => {
       currentUser,
       pinnedMessage,
       isFocused,
-      selectedMessages
+      selectedMessages,
+      headerHeight,
+      insets.top,
+      setReplyCheck,
+      setSelectedMessageStatus,
+      setReactionPickerState
     ],
   );
 
@@ -1108,7 +1188,16 @@ const ScreenWindows = ({ navigation, route }) => {
       messageId = selectedMessage?.id;
       newContent = editedMessage;
     }
-    if (messageId && newContent !== undefined) {
+    // Find the original message content
+    const originalMessage = messages.find(msg => msg.id === messageId);
+    const originalContent = originalMessage?.content?.trim() || '';
+    const newContentTrimmed = (newContent || '').trim();
+    // Only proceed if the content has actually changed
+    if (
+      messageId &&
+      newContent !== undefined &&
+      newContentTrimmed !== originalContent
+    ) {
       const payload = {
         action: 'edit_message',
         message_id: messageId,
@@ -1126,6 +1215,10 @@ const ScreenWindows = ({ navigation, route }) => {
             : msg,
         ),
       );
+      setEditmessagestatus(false);
+      setSelectedMessage(null);
+    } else {
+      // If no change, just exit edit mode without updating
       setEditmessagestatus(false);
       setSelectedMessage(null);
     }
@@ -1207,6 +1300,7 @@ const ScreenWindows = ({ navigation, route }) => {
     // For an inverted list, a positive scrollOffset means scrolling towards older messages (upwards visually).
     // So, if scrollOffset > 50, the user has scrolled up.
     isScrolledUp.current = scrollOffset > 50;
+    setShowScrollToBottom(scrollOffset > 50);
   }, []);
 
   const handleDeleteMessage = useCallback(() => {
@@ -1290,11 +1384,11 @@ const ScreenWindows = ({ navigation, route }) => {
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <View style={{ flex: 1 }}>
             <Pressable style={{ flex: 1 }} onPress={dismissReactionPicker}>
-              <FlatList
+              <FlashList
                 ref={flatListRef}
-                data={messages}
+                data={messagesWithSeparators}
                 renderItem={renderMessageItem}
-                keyExtractor={item => String(item.id)}
+                keyExtractor={item => item._id || String(item.id)}
                 showsVerticalScrollIndicator={false}
                 inverted
                 keyboardShouldPersistTaps="handled"
@@ -1303,6 +1397,7 @@ const ScreenWindows = ({ navigation, route }) => {
                 contentContainerStyle={styles.messageListContainer}
                 onEndReached={handleLoadMore}
                 onEndReachedThreshold={0.1}
+                extraData={selectedMessages}
                 ListFooterComponent={
                   loading && page > 1 ? (
                     <ActivityIndicator
@@ -1349,9 +1444,7 @@ const ScreenWindows = ({ navigation, route }) => {
                     </View>
                   ) : null
                 }
-                initialNumToRender={PAGE_SIZE}
-                maxToRenderPerBatch={PAGE_SIZE}
-                windowSize={21}
+                estimatedItemSize={70}
                 onScrollToIndexFailed={info => {
                   const wait = new Promise(resolve => setTimeout(resolve, 500));
                   wait.then(() => {
@@ -1377,6 +1470,18 @@ const ScreenWindows = ({ navigation, route }) => {
               />
             </Pressable>
 
+            {/* Floating Down Arrow Button */}
+            {showScrollToBottom && (
+              <Pressable
+                style={styles.scrollToBottomButton}
+                onPress={() => {
+                  flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+                }}
+                accessibilityLabel="Scroll to latest message"
+              >
+                <DownArrowSvg width={22} height={22} color={'#FF8C00'} />
+              </Pressable>
+            )}
             <ChatInputBar
               onSend={handleSend}
               selectedMessage={selectedMessages && selectedMessages.length > 0 ? selectedMessages[0] : null}
@@ -1398,7 +1503,11 @@ const ScreenWindows = ({ navigation, route }) => {
       {reactionPickerState.visible && (
         <View
           style={[styles.pickerWrapper, { top: reactionPickerState.positionY }]}>
-          <ReactionPicker onSelectReaction={handleSelectReaction} />
+          <ReactionPicker
+            onSelectReaction={handleSelectReaction}
+            currentUserId={currentUser?.id}
+            message={reactionPickerState.message}
+          />
         </View>
       )}
     </ScreenView>
@@ -1472,6 +1581,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 5,
+  },
+  selectedMessage: {
+    backgroundColor: 'red',
+    borderRadius: 12,
   },
   avatarCircle: {
     width: RfH(36),
@@ -1687,12 +1800,41 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
+  scrollToBottomButton: {
+    position: 'absolute',
+    right: 20,
+    bottom: 80,
+    backgroundColor: '#FFF',
+    borderRadius: 24,
+    padding: 4,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    zIndex: 100,
+  },
   snackbarContent: {
     color: '#fff',
     fontSize: 14,
     letterSpacing: 0.3,
     fontFamily: fonts.PoppinsRegular,
     // marginLeft: 8,
+  },
+  dateSeparatorContainer: {
+    alignSelf: 'center',
+    backgroundColor: '#e5e5e5',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    marginVertical: 8,
+    minWidth: 80,
+  },
+  dateSeparatorText: {
+    color: '#555',
+    fontSize: 12,
+    fontFamily: fonts.PoppinsRegular,
+    textAlign: 'center',
   },
 });
 

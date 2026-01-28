@@ -25,7 +25,6 @@ import CancelIcon from '../../../assets/svg/CloseSvg';
 import Avatar from '../../../components/AvatarComponents/Avatar';
 // --- SVG IMPORTS ---
 import MicSvgIcon from '../../../assets/svg/MiciconSvg';
-import AddMediaSvg from '../../../assets/svg/AddMediaSvg';
 import MediaImage from '../../../assets/Png/media.png';
 import EmojiImage from '../../../assets/Png/Emoji.webp';
 import CameraImage from '../../../assets/Png/cameraoutLine.webp';
@@ -76,6 +75,7 @@ const ChatInputBar = ({
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordTime, setRecordTime] = useState('00:00');
+  const [sending, setSending] = useState(false);
   const { connect, sendMessage, lastMessage } = useWebSocket();
   const [selectedLottie, setSelectedLottie] = useState(null);
 
@@ -107,6 +107,8 @@ const ChatInputBar = ({
   };
 
   const handleSendText = () => {
+    if (sending) return; // Prevent double send
+    setSending(true);
     if (selectedLottie) {
       // Send the emoji key (not the lottie path) in the payload
       if (selectedLottie.key) {
@@ -114,6 +116,7 @@ const ChatInputBar = ({
       }
       setSelectedLottie(null);
       setMessage('');
+      setSending(false);
       return;
     }
     if (typeof message === 'string' && message.trim().length > 0) {
@@ -124,10 +127,14 @@ const ChatInputBar = ({
         });
         setEditmessagestatus(false);
         setSelectedMessage(null);
+        setSending(false);
       } else {
         onSend({ content: message.trim() });
+        setSending(false);
       }
       setMessage('');
+    } else {
+      setSending(false);
     }
   };
   // State for Lottie emoji picker
@@ -512,6 +519,7 @@ const ChatInputBar = ({
               <TouchableOpacity
                 style={styles.sendButton}
                 onPress={handleSendText}
+                disabled={sending}
               >
                 {editmessagestatus ? (
                   <SendSmsSvg color="#ffffff" width={20} height={20} />

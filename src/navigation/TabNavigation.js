@@ -8,7 +8,6 @@ import {
   Animated,
   BackHandler,
   Platform,
-  Alert,
 } from 'react-native';
 
 import ToastContent from '../components/ToastContent';
@@ -28,27 +27,33 @@ const tabBackgrounds = [
   require('../assets/Png/more-active.jpg'),
 ];
 
+const TOAST_HIDE_DELAY = 2000;
+
 const TabNavigation = () => {
-  const {lastMessage} = useWebSocket();
+  const {lastMessage, manageNewMessageToastChatScreen} = useWebSocket();
 
   const [activeTab, setActiveTab] = useState(1);
   const [hideTabBar, setHideTabBar] = useState(false);
+
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastContent, setToastContent] = useState('');
   const [toastProfilePic, setToastProfilePic] = useState(null);
-  const toastTimeoutRef = useRef(null);
-  const toastAnim = useRef(new Animated.Value(-100)).current;
+  const [toastGroupName, setToastGroupName] = useState('');
 
+  const toastAnim = useRef(new Animated.Value(-100)).current;
+  const toastTimeoutRef = useRef(null);
+  const lastShownMsgId = useRef(null);
+
+  /* -------------------- BACK HANDLER -------------------- */
   useEffect(() => {
     const onBackPress = () => {
       if (activeTab !== 1) {
         setActiveTab(1);
         return true;
-      } else {
-        BackHandler.exitApp();
-        return true;
       }
+      BackHandler.exitApp();
+      return true;
     };
 
     if (Platform.OS === 'android') {
@@ -62,6 +67,7 @@ const TabNavigation = () => {
     };
   }, [activeTab]);
 
+  /* -------------------- SCREENS -------------------- */
   const ScreenComponent = useMemo(() => {
     if (activeTab === 0) return <ScreenTimely setHideTabBar={setHideTabBar} />;
     if (activeTab === 1)
@@ -73,57 +79,63 @@ const TabNavigation = () => {
     return null;
   }, [activeTab, hideTabBar]);
 
-  // Toast logic
-  // Only show toast when a new message is received, not just on tab switch
-  const lastShownMsgId = useRef(null);
+  /* -------------------- TOAST LOGIC (FIXED) -------------------- */
   useEffect(() => {
-    if (
-      activeTab !== 1 &&
-      lastMessage?.action === 'receive_new_message' &&
-      lastMessage?.data?.id &&
-      lastMessage?.data?.id !== lastShownMsgId.current
+    if (activeTab === 1) return;
+
+    let data = null;
+    let isGroup = false;
+
+    if (lastMessage?.action === 'receive_new_message') {
+      data = lastMessage.data;
+    } else if (
+      manageNewMessageToastChatScreen?.action === 'receive_new_group_message'
     ) {
-      setToastMessage(lastMessage?.data?.sender_name);
-      setToastContent(lastMessage?.data?.content);
-      setToastProfilePic(
-        lastMessage?.data?.profile_picture ||
-          lastMessage?.data?.sender_profile_picture ||
-          null,
-      );
-      setToastVisible(true);
-      lastShownMsgId.current = lastMessage.data.id;
-
-      Animated.timing(toastAnim, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }).start();
-
-      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-
-      toastTimeoutRef.current = setTimeout(() => {
-        Animated.timing(toastAnim, {
-          toValue: -100,
-          duration: 400,
-          useNativeDriver: true,
-        }).start(() => setToastVisible(false));
-      }, 1000);
-    } else if (toastVisible) {
-      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-      toastTimeoutRef.current = setTimeout(() => {
-        Animated.timing(toastAnim, {
-          toValue: -100,
-          duration: 400,
-          useNativeDriver: true,
-        }).start(() => setToastVisible(false));
-      }, 1000);
+      data = manageNewMessageToastChatScreen.message;
+      isGroup = true;
     }
 
-    return () => {
-      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-    };
-  }, [lastMessage, activeTab]);
+    if (!data?.id || data.id === lastShownMsgId.current) return;
 
+    lastShownMsgId.current = data.id;
+
+    // clear previous hide timer ONLY when new toast comes
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+
+    setToastMessage(isGroup ? data.sender.name : data.sender_name);
+    setToastContent(data.content);
+    setToastProfilePic(
+      isGroup
+        ? data.sender.avatar
+        : data.profile_picture || data.sender_profile_picture,
+    );
+    setToastGroupName(isGroup ? data.conversation.group_name : '');
+
+    setToastVisible(true);
+    toastAnim.setValue(-100);
+
+    Animated.timing(toastAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+
+    toastTimeoutRef.current = setTimeout(() => {
+      Animated.timing(toastAnim, {
+        toValue: -100,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => {
+        setToastVisible(false);
+        toastTimeoutRef.current = null;
+      });
+    }, TOAST_HIDE_DELAY);
+  }, [lastMessage, manageNewMessageToastChatScreen, activeTab]);
+
+  /* -------------------- UI -------------------- */
   return (
     <View style={{flex: 1}}>
       {toastVisible && (
@@ -135,13 +147,12 @@ const TabNavigation = () => {
           <LinearGradient
             colors={[mainOrangeColor, mainOrangeColor]}
             style={styles.snackbarGradient}>
-            <View style={{flexDirection: 'row', alignItems: 'center'}}>
-              <ToastContent
-                profilePic={toastProfilePic}
-                senderName={toastMessage}
-                message={toastContent}
-              />
-            </View>
+            <ToastContent
+              profilePic={toastProfilePic}
+              senderName={toastMessage}
+              groupName={toastGroupName || undefined}
+              message={toastContent}
+            />
           </LinearGradient>
         </Animated.View>
       )}
@@ -155,8 +166,8 @@ const TabNavigation = () => {
           <View style={styles.tabBarRow}>
             {[0, 1, 2, 3].map(index => (
               <Pressable
-                hitSlop={30}
                 key={index}
+                hitSlop={30}
                 onPress={() => setActiveTab(index)}
                 style={styles.tabButton}
               />
@@ -199,6 +210,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
     alignItems: 'center',
     paddingTop: RfW(40),
+    alignSelf: 'center',
   },
   snackbarGradient: {
     borderRadius: 12,
@@ -210,7 +222,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: RfW(4),
     elevation: 6,
-    minWidth: RfW(240),
+    width: '90%',
+    alignSelf: 'center',
   },
   snackbarRow: {
     flexDirection: 'row',

@@ -188,12 +188,12 @@ const MessageType = ({
       ]}
     >
       {item?.is_system_message && !StarListing ? (
-        <View style={styles.systemMessageContainer}>
-          <Text allowFontScaling={false} style={styles.systemMessageText}>
-            {item?.content}
-          </Text>
-        </View>
-        // null
+        // <View style={styles.systemMessageContainer}>
+        //   <Text allowFontScaling={false} style={styles.systemMessageText}>
+        //     {item?.content}
+        //   </Text>
+        // </View>
+        null
       ) : item?.is_system_message && StarListing ? (
         <></>
       ) : item?.isSender ? (

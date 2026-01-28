@@ -375,10 +375,30 @@ const ViewDetails = ({ navigation, route }) => {
                   style={{ width: '100%', height: '100%', borderRadius: 40 }}
                   resizeMode="cover"
                 />
-              )
-                : (
-                  <ContactPersonSvgIcon width={35} height={35} />
-                )}
+              ) : route?.params?.isGroup ? (
+                <ContactPersonSvgIcon width={35} height={35} />
+              ) : (
+                (() => {
+                  const name = (profileData?.name || route?.params?.name || '').trim();
+                  if (!name) return null;
+                  const parts = name.split(' ');
+                  let initials = '';
+                  if (parts.length === 1) {
+                    initials = parts[0][0]?.toUpperCase() || '';
+                  } else if (parts.length > 1) {
+                    initials = (parts[0][0] || '') + (parts[parts.length - 1][0] || '');
+                    initials = initials.toUpperCase();
+                  }
+                  return (
+                    <View style={{
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Text style={{ color: '#fff', fontSize: 18, fontFamily: fonts.PoppinsMedium, lineHeight: 24 }}>{initials}</Text>
+                    </View>
+                  );
+                })()
+              )}
             </TouchableOpacity>
 
           </View>

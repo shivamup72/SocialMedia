@@ -1,4 +1,5 @@
 import React, { useState, useEffect, memo, useMemo } from 'react';
+import { FlatList } from 'react-native';
 import {
   StyleSheet,
   Text,
@@ -103,104 +104,107 @@ const ReactionDetailsModal = memo(
         transparent={true}
         visible={isVisible}
         onRequestClose={onClose}>
-        <Pressable style={modalStyles.modalOverlay} onPress={onClose}>
-          <Pressable style={modalStyles.modalContent} onPress={() => { }}>
-            <View style={modalStyles.modalHeader}>
-              <Text style={modalStyles.modalTitle}>
-                {reactions.length}{' '}
-                {reactions.length === 1 ? 'Reaction' : 'Reactions'}
-              </Text>
-              <TouchableOpacity
-                style={modalStyles.closeButton}
-                onPress={onClose}>
-                <CloseSvg width={25} height={25} />
-              </TouchableOpacity>
-            </View>
+        <TouchableOpacity style={modalStyles.modalOverlay} onPress={onClose} activeOpacity={0.9}></TouchableOpacity>
+        <View style={modalStyles.modalContent}>
+          <View style={modalStyles.modalHeader}>
+            <Text style={modalStyles.modalTitle}>
+              {reactions.length}{' '}
+              {reactions.length === 1 ? 'Reaction' : 'Reactions'}
+            </Text>
+            <TouchableOpacity
+              style={modalStyles.closeButton}
+              onPress={onClose}>
+              <CloseSvg width={25} height={25} />
+            </TouchableOpacity>
+          </View>
 
-            <View style={modalStyles.reactionTabs}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={modalStyles.reactionTabs}>
+            <FlatList
+              data={[{ key: 'all', emoji: 'All', count: reactions.length }, ...Object.entries(reactionsByEmoji).map(([emoji, data]) => ({ key: emoji, emoji, count: data.count }))]}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={item => item.key}
+              renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
                     modalStyles.reactionTab,
-                    !selectedEmoji && modalStyles.selectedTab,
+                    (selectedEmoji === item.emoji || (item.key === 'all' && !selectedEmoji)) && modalStyles.selectedTab,
                   ]}
-                  onPress={() => setSelectedEmoji(null)}>
-                  <Text style={modalStyles.reactionTabEmoji}>All</Text>
-                  <Text style={modalStyles.reactionTabCount}>
-                    {reactions.length}
-                  </Text>
+                  onPress={() => item.key === 'all' ? setSelectedEmoji(null) : setSelectedEmoji(item.emoji)}>
+                  <Text style={modalStyles.reactionTabEmoji}>{item.emoji}</Text>
+                  <Text style={modalStyles.reactionTabCount}>{item.count}</Text>
                 </TouchableOpacity>
-
-                {Object.entries(reactionsByEmoji).map(([emoji, data]) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    style={[
-                      modalStyles.reactionTab,
-                      selectedEmoji === emoji && modalStyles.selectedTab,
-                    ]}
-                    onPress={() => setSelectedEmoji(emoji)}>
-                    <Text style={modalStyles.reactionTabEmoji}>{emoji}</Text>
-                    <Text style={modalStyles.reactionTabCount}>
-                      {data.count}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-
-            <ScrollView style={modalStyles.usersList}>
-              {displayedUserReactions.map((reactionUser, index) => (
-                <View
-                  key={`${reactionUser.id}-${reactionUser.reaction_id || index
-                    }`}
-                  style={modalStyles.userRow}>
-                  <View style={modalStyles.userInfo}>
-                    {reactionUser.avatar ? (
-                      <Avatar
-                        avatarUri={reactionUser.avatar}
-                        name={reactionUser.name || 'User'}
-                        email={reactionUser.email || ''}
-                        size={40}
-                        borderRadius={20}
-                        fontSize={18}
-                      />
-                    ) : (
-                      <View style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
-                        backgroundColor: '#e0e0e0',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}>
-                        <Text style={{ fontSize: 18, color: '#555', fontWeight: 'bold' }}>
-                          {(() => {
-                            if (!reactionUser.name) return 'U';
-                            const parts = reactionUser.name.trim().split(' ');
-                            if (parts.length === 1) return parts[0][0]?.toUpperCase() || 'U';
-                            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-                          })()}
-                        </Text>
-                      </View>
-                    )}
-                    <Text style={modalStyles.userName}>
-                      {String(currentUserId) === String(reactionUser.id) ? 'You' : reactionUser.name || reactionUser.email}
-                    </Text>
+              )}
+              contentContainerStyle={{ alignItems: 'center' }}
+              keyboardShouldPersistTaps="handled"
+              style={{ maxHeight: 44 }}
+            />
+          </View>
+          <View style={{ maxHeight: 360 }}>
+            {displayedUserReactions.length > 0 ? (
+              <FlatList
+                data={displayedUserReactions}
+                keyExtractor={(reactionUser, index) => `${reactionUser.id}-${reactionUser.reaction_id || index}`}
+                style={[modalStyles.usersList, { flexGrow: 1 }]} // Removed maxHeight and height to allow FlatList to use flex for scrolling
+                contentContainerStyle={{ flexGrow: 1 }}
+                renderItem={({ item: reactionUser, index }) => (
+                  <View style={modalStyles.userRow}>
+                    <View style={modalStyles.userInfo}>
+                      {reactionUser.avatar ? (
+                        <Avatar
+                          avatarUri={reactionUser.avatar}
+                          name={reactionUser.name || 'User'}
+                          email={reactionUser.email || ''}
+                          size={40}
+                          borderRadius={20}
+                          fontSize={18}
+                        />
+                      ) : (
+                        <View style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor: '#e0e0e0',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Text style={{ fontSize: 18, color: '#555', fontWeight: 'bold' }}>
+                            {(() => {
+                              if (!reactionUser.name) return 'U';
+                              const parts = reactionUser.name.trim().split(' ');
+                              if (parts.length === 1) return parts[0][0]?.toUpperCase() || 'U';
+                              return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                            })()}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={modalStyles.userName}>
+                        {String(currentUserId) === String(reactionUser.id) ? 'You' : reactionUser.name || reactionUser.email}
+                      </Text>
+                    </View>
+                    <View style={modalStyles.userReactionDetails}>
+                      {String(currentUserId) === String(reactionUser.id) && (
+                        <TouchableOpacity
+                          style={modalStyles.removeButton}
+                          onPress={() => handleRemoveReaction(reactionUser)}>
+                          <Text style={modalStyles.removeButtonText}>Remove</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
-                  <View style={modalStyles.userReactionDetails}>
-                    {String(currentUserId) === String(reactionUser.id) && (
-                      <TouchableOpacity
-                        style={modalStyles.removeButton}
-                        onPress={() => handleRemoveReaction(reactionUser)}>
-                        <Text style={modalStyles.removeButtonText}>Remove</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
+                )}
+                keyboardShouldPersistTaps="always"
+                removeClippedSubviews={true}
+              // windowSize={10}
+              // initialNumToRender={10}
+              />
+            ) : (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: '#888', fontSize: 16 }}>No reactions found.</Text>
+              </View>
+            )}
+          </View>
+        </View>
       </Modal>
     );
   },
@@ -213,10 +217,10 @@ const modalStyles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fff',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
-    maxHeight: '70%',
+    maxHeight: '60%',
     paddingBottom: 25,
   },
   modalHeader: {
@@ -268,7 +272,7 @@ const modalStyles = StyleSheet.create({
     fontWeight: '600',
   },
   usersList: {
-    maxHeight: 'auto',
+    width: '100%',
   },
   userRow: {
     flexDirection: 'row',

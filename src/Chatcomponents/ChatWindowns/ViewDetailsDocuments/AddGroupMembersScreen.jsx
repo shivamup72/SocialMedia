@@ -165,16 +165,26 @@ const AddGroupMembersScreen = ({ navigation, route }) => {
         <SearchSvg width="20" height="20" color={mainOrangeColor} />
       </View>
 
-      <FlatList
-        data={filteredUsers}
-        renderItem={renderContactItem}
-        keyExtractor={item => item.id}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        contentContainerStyle={{
-          padding: 16,
-          paddingBottom: 100,
-        }}
-      />
+      {filteredUsers.length === 0 ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', }}>
+          <Text style={{
+            color: mainOrangeColor,
+            fontSize: 16,
+            fontFamily: fonts.PoppinsSemiBold,
+          }}>No data found</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredUsers}
+          renderItem={renderContactItem}
+          keyExtractor={item => item.id}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          contentContainerStyle={{
+            padding: 16,
+            paddingBottom: 100,
+          }}
+        />
+      )}
 
       <TouchableOpacity style={styles.fab} onPress={handleGroupCreate}>
         <Image source={ArrowIcon} style={styles.fabIcon} />

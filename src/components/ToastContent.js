@@ -2,7 +2,7 @@ import React from 'react';
 import {View, Text, Image, StyleSheet} from 'react-native';
 import {fonts, mainOrangeColor} from '../utils/style/fonts';
 
-const ToastContent = ({profilePic, senderName, message}) => {
+const ToastContent = ({profilePic, senderName, message, groupName}) => {
   // Compute initials if no image
   const getInitials = name => {
     if (!name) return '';
@@ -12,7 +12,12 @@ const ToastContent = ({profilePic, senderName, message}) => {
   };
 
   return (
-    <View style={{flexDirection: 'row', alignItems: 'center'}}>
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        width: '90%',
+      }}>
       {profilePic ? (
         <View style={{marginRight: 10}}>
           <Image
@@ -32,8 +37,13 @@ const ToastContent = ({profilePic, senderName, message}) => {
         </View>
       )}
       <View>
+        {groupName ? (
+          <Text style={styles.snackbarText1}>{groupName}</Text>
+        ) : null}
         <Text style={styles.snackbarText}>{senderName}</Text>
-        <Text style={styles.snackbarContent}>{message}</Text>
+        <Text style={styles.snackbarContent}>
+          {message?.length > 26 ? `${message.slice(0, 26)}...` : message}
+        </Text>
       </View>
     </View>
   );
@@ -56,7 +66,7 @@ const styles = StyleSheet.create({
   },
   snackbarText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 12,
     fontFamily: fonts.PoppinsMedium,
     letterSpacing: 0.5,
     textShadowColor: 'rgba(0,0,0,0.2)',
@@ -64,6 +74,12 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   snackbarContent: {
+    color: '#fff',
+    fontSize: 12,
+    letterSpacing: 0.3,
+    fontFamily: fonts.PoppinsRegular,
+  },
+  snackbarText1: {
     color: '#fff',
     fontSize: 14,
     letterSpacing: 0.3,

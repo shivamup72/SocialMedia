@@ -230,7 +230,8 @@ const HubSection = ({ setRefresh }: HubSectionProps) => {
                     style={styles.hubItem}
                 >
                     <View style={styles.leftRow}>
-                        <CustomText style={styles.hubName}>{item.name}</CustomText>
+
+                        <CustomText style={styles.hubName}>{item.name?.length > 30 ? `${item.name.slice(0, 30)}...` : item.name}</CustomText>
                         <CustomText
                             style={[styles.hubName, { marginLeft: 8, color: DarkColor }]}
                         >

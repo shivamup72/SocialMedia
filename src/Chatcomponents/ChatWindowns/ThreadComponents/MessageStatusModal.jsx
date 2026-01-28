@@ -26,7 +26,7 @@ export const MessageStatusModal = ({ visible, onClose, statusList }) => {
     (a, b) => (sortOrder[a?.status] || 99) - (sortOrder[b?.status] || 99),
   );
 
-  console.log(sortedStatusList, "sortedStatusList==================");
+  // console.log(sortedStatusList, "sortedStatusList==================");
 
 
   const renderStatusItem = ({ item }) => (

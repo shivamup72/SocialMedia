@@ -8,9 +8,18 @@ const DEFAULT_EMOJIS = ['😊', '👍', '❤️', '😀', '😉', '😅', '🥳'
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 
-const ReactionPicker = ({ onSelectReaction, message }) => {
+const ReactionPicker = ({ onSelectReaction, message, currentUserId }) => {
   const [emojis, setEmojis] = useState(DEFAULT_EMOJIS);
   const [showEmojiSelector, setShowEmojiSelector] = useState(false);
+
+  // message.reactions is an array of objects: { id, user_id, reaction, ... }
+  // We need to highlight if the current user has reacted with this emoji
+  // Get current user id from message.currentUserId or pass as prop if needed
+  // Use currentUserId prop for accurate user context
+  const reactions = message?.reactions || [];
+  // Helper: check if current user has reacted with this emoji
+  const isEmojiSelectedByUser = (emoji) =>
+    reactions.some(r => (r.reaction === emoji) && (String(r.user_id || r.id) === String(currentUserId)));
 
   const handlePlusPress = () => {
     setShowEmojiSelector(true);
@@ -30,14 +39,21 @@ const ReactionPicker = ({ onSelectReaction, message }) => {
   return (
     <View>
       <View style={styles.pickerContainer}>
-        {emojis.map(emoji => (
-          <TouchableOpacity
-            key={emoji}
-            onPress={() => onSelectReaction(emoji, message)}
-            style={styles.emojiButton}>
-            <Text style={styles.emoji}>{emoji}</Text>
-          </TouchableOpacity>
-        ))}
+        {emojis.map(emoji => {
+          const isSelected = isEmojiSelectedByUser(emoji);
+          return (
+            <TouchableOpacity
+              key={emoji}
+              onPress={() => onSelectReaction(emoji, message)}
+              style={[
+                styles.emojiButton,
+                isSelected && styles.selectedEmojiButton
+              ]}
+            >
+              <Text style={styles.emoji}>{emoji}</Text>
+            </TouchableOpacity>
+          );
+        })}
         <TouchableOpacity
           key="plus"
           onPress={handlePlusPress}
@@ -98,6 +114,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 3,
     // backgroundColor:'red',
+  },
+  selectedEmojiButton: {
+    backgroundColor: '#e0f7fa', // Highlight color for selected emoji
+    borderRadius: 8,
+    marginHorizontal: 2,
   },
   modalOverlay: {
     flex: 1,

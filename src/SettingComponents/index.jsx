@@ -8,8 +8,9 @@ import {
   Alert,
   TextInput,
   FlatList,
+  BackHandler,
 } from 'react-native';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   fonts,
   mainWhiteColor,
@@ -230,6 +231,15 @@ const SettingComponents = ({ navigation, route }) => {
       console.log('error  -=-=-=-=------->', error);
     }
   };
+
+  useEffect(() => {
+    const onBackPress = () => {
+      navigation.goBack();
+      return true; // Prevent default exit behavior
+    };
+    BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
+  }, [navigation]);
 
   return (
     <View style={styles.container}>
