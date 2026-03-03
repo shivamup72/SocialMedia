@@ -1,0 +1,197 @@
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, TouchableWithoutFeedback, Dimensions } from 'react-native';
+import EmojiSelector, { Categories } from 'react-native-emoji-selector';
+import { RfW } from '../../utils/helper';
+import CustomText from '../../utils/CustomText';
+
+
+const DEFAULT_EMOJIS = ['😂', '❤️', '😮', '😢', '🙏', '👍', '👎', '🔥'];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+
+const ReactionPicker = ({ onSelectReaction, message, currentUserId }) => {
+  const [emojis, setEmojis] = useState(DEFAULT_EMOJIS);
+  const [showEmojiSelector, setShowEmojiSelector] = useState(false);
+
+  // message.reactions is an array of objects: { id, user_id, reaction, ... }
+  // We need to highlight if the current user has reacted with this emoji
+  // Get current user id from message.currentUserId or pass as prop if needed
+  // Use currentUserId prop for accurate user context
+  const reactions = message?.reactions || [];
+  // Helper: check if current user has reacted with this emoji
+  const isEmojiSelectedByUser = (emoji) =>
+    reactions.some(r => (r.reaction === emoji) && (String(r.user_id || r.id) === String(currentUserId)));
+
+  const handlePlusPress = () => {
+    setShowEmojiSelector(true);
+  };
+
+  const handleEmojiSelected = (emoji) => {
+    if (!emojis.includes(emoji)) {
+      setEmojis(prev => {
+        const updated = [...prev, emoji];
+        return updated;
+      });
+    }
+    setShowEmojiSelector(false);
+    onSelectReaction(emoji, message);
+  };
+
+  return (
+    <>
+      <View style={styles.whatsappPopup}>
+        {emojis.map(emoji => {
+          const isSelected = isEmojiSelectedByUser(emoji);
+          return (
+            <TouchableOpacity
+              key={emoji}
+              onPress={() => onSelectReaction(emoji, message)}
+              style={[
+                styles.emojiButton,
+                isSelected && styles.selectedEmojiButton
+              ]}
+            >
+              <CustomText style={styles.emoji}>{emoji}</CustomText>
+            </TouchableOpacity>
+          );
+        })}
+        <TouchableOpacity
+          key="plus"
+          onPress={handlePlusPress}
+          style={[styles.emojiButton, styles.addButton]}
+          accessibilityLabel="Add Reaction"
+        >
+          <View style={styles.addCircle}>
+            <CustomText style={styles.addPlus}>+</CustomText>
+          </View>
+        </TouchableOpacity>
+      </View>
+      <Modal
+        visible={showEmojiSelector}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowEmojiSelector(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowEmojiSelector(false)}>
+          <View style={styles.modalOverlay} />
+        </TouchableWithoutFeedback>
+        <View style={styles.bottomSheet}>
+          <View style={styles.dragHandle} />
+          <EmojiSelector
+            onEmojiSelected={handleEmojiSelected}
+            showSearchBar={true}
+            showSectionTitles={false}
+            category={Categories.ALL}
+            columns={10}
+            emojiSize={18}
+            searchBarStyle={styles.searchBar}
+            searchBarTextStyle={styles.searchText}
+            containerStyle={styles.emojiSelector}
+          />
+        </View>
+      </Modal>
+    </>
+  );
+
+};
+
+const styles = StyleSheet.create({
+  whatsappPopup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+    minHeight: 44,
+  },
+  emojiButton: {
+    // marginHorizontal: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    // backgroundColor:'red',
+  },
+  selectedEmojiButton: {
+    backgroundColor: '#e0f7fa', // Highlight color for selected emoji
+    borderRadius: 8,
+    marginHorizontal: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  bottomSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 360,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingTop: 10,
+    paddingBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 12,
+  },
+
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#d1d1d1',
+    alignSelf: 'center',
+    marginBottom: 8,
+  },
+
+  searchBar: {
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f0f2f5',
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+  },
+
+  searchText: {
+    fontSize: 12,
+    color: '#000',
+  },
+
+  emojiSelector: {
+    flex: 1,
+    paddingHorizontal: 8,
+  },
+
+  emoji: {
+    fontSize: 18,
+  },
+  addButton: {
+    marginLeft: RfW(2),
+  },
+  addCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f0f2f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addPlus: {
+    color: '#606060',
+    fontSize: 22,
+    fontWeight: '300',
+  },
+});
+
+export default ReactionPicker;
