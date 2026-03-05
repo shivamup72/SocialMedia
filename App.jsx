@@ -13,12 +13,15 @@ import { SettingsProvider } from './src/Api/context/SettingsContext';
 import CallListener from './src/components/CallListener';
 import StackNavigation from './src/navigation/StackNavigation';
 import { AppState, Platform } from 'react-native';
-import messaging from '@react-native-firebase/messaging';
 import notifee, { EventType } from '@notifee/react-native';
 import FormData from 'form-data';
 import AsyncStorage1 from './src/Api/config/AsyncStorage';
 import { PatchFCMTokenApi } from './src/Api/config/HomeApi';
 import NotificationPermissionModal from './src/OnBoardingFlow/NotificationPermissionModal';
+import { setupNotificationHandlers } from './src/utils/notificationManager';
+
+// Only import Firebase messaging on Android
+const messaging = Platform.OS === 'android' ? require('@react-native-firebase/messaging').default : null;
 
 
 function App() {
@@ -77,6 +80,13 @@ function AppContent() {
 
   const setupCloudMessaging = async () => {
     console.log('[Notification] setupCloudMessaging called');
+    
+    // Skip Firebase on iOS for now
+    if (Platform.OS === 'ios' || !messaging) {
+      console.log('[Notification] Skipping Firebase messaging on iOS');
+      return;
+    }
+    
     try {
       const authStatus = await messaging().requestPermission();
       console.log('[Notification] Permission request status:', authStatus);
@@ -99,6 +109,11 @@ function AppContent() {
   };
 
   const getFCMToken = async () => {
+    // Skip Firebase on iOS for now
+    if (Platform.OS === 'ios' || !messaging) {
+      return;
+    }
+    
     try {
       const fcmToken = await messaging().getToken();
       if (fcmToken) {
@@ -118,6 +133,11 @@ function AppContent() {
   };
 
   useEffect(() => {
+    // Skip Firebase listeners on iOS for now
+    if (Platform.OS === 'ios' || !messaging) {
+      return;
+    }
+    
     const unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
       console.log('[Notification] Foreground FCM message:', JSON.stringify(remoteMessage));
       if (remoteMessage && remoteMessage.data && (remoteMessage.data.type === 'message' || remoteMessage.data.action === 'receive_new_message')) {
