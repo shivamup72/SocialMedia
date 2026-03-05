@@ -4,11 +4,11 @@ import { DarkColor80, DarkColor90, fonts, mainOrangeColor, mainWhiteColor } from
 import { RfH, RfW } from '../utils/helper';
 import SendSvgIcon from '../assets/svg/sendmsmArrowSvg';
 import CustomText from '../utils/CustomText';
-
-// import Video from 'react-native-video'; // Uncomment if you want video preview
+import Video from 'react-native-video';
 
 const PreviewModal = ({ visible, file, type, onSend, onCancel }) => {
     const [caption, setCaption] = useState('');
+    const [videoPaused, setVideoPaused] = useState(true);
 
     const handleSend = () => {
         onSend({ ...file, caption });
@@ -20,7 +20,21 @@ const PreviewModal = ({ visible, file, type, onSend, onCancel }) => {
             <View style={styles.overlay}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fullScreen}>
                     {/* Main preview area */}
-                    {type === 'image' && (
+                    {(((type === 'video') || (file?.type && file.type.startsWith('video'))) ? (
+                        <View style={styles.whatsappImageContainer}>
+                            <Video
+                                source={{ uri: file.uri }}
+                                style={styles.whatsappImage}
+                                controls
+                                resizeMode="contain"
+                                paused={videoPaused}
+                            />
+                            {/* Floating close button */}
+                            <TouchableOpacity style={styles.floatingCloseButton} onPress={onCancel}>
+                                <CustomText style={styles.closeText}>✕</CustomText>
+                            </TouchableOpacity>
+                        </View>
+                    ) : ((type === 'image') || (file?.type && file?.type.startsWith('image')) || (!type && file?.uri)) ? (
                         <View style={styles.whatsappImageContainer}>
                             <Image source={{ uri: file.uri }} resizeMode="contain" style={styles.whatsappImage} />
                             {/* Floating close button */}
@@ -28,7 +42,8 @@ const PreviewModal = ({ visible, file, type, onSend, onCancel }) => {
                                 <CustomText style={styles.closeText}>✕</CustomText>
                             </TouchableOpacity>
                         </View>
-                    )}
+                    ) : null)}
+
                     {(type === 'document' || type === 'audio') && (
                         <View style={styles.docCardContainer}>
                             <View style={styles.docCard}>
@@ -184,6 +199,29 @@ const styles = StyleSheet.create({
         borderRadius: 46,
         alignItems: 'center',
         justifyContent: 'center'
+    },
+    playButtonOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 20,
+    },
+    playButtonCircle: {
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        borderRadius: 40,
+        width: 80,
+        height: 80,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    playButtonIcon: {
+        color: '#fff',
+        fontSize: 48,
+        marginLeft: 8,
     },
 });
 

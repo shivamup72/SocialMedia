@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Modal,
@@ -10,15 +10,11 @@ import {
     PermissionsAndroid,
     Platform,
     Alert,
+    ActivityIndicator,
 } from 'react-native';
 import CustomText from '../utils/CustomText';
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
-import {
-    DarkColor,
-    fonts,
-    mainOrangeColor,
-    mainWhiteColor,
-} from '../utils/style/fonts';
+import { DarkColor, fonts, mainOrangeColor, mainWhiteColor } from '../utils/style/fonts';
 import { RfH } from '../utils/helper';
 
 const numColumns = 3;
@@ -35,66 +31,102 @@ const CustomGallery = ({ visible, onClose, onSelect }) => {
     const [images, setImages] = useState([]);
     const [loading, setLoading] = useState(false);
     const [selectedFilter, setSelectedFilter] = useState('All');
+    const [endCursor, setEndCursor] = useState(null);
+    const [hasNextPage, setHasNextPage] = useState(true);
 
-    useEffect(() => {
-        if (visible) {
-            fetchGalleryImages(selectedFilter);
-        }
-    }, [visible, selectedFilter]);
-
+    // =========================
+    // Permission
+    // =========================
     const requestGalleryPermission = async () => {
         if (Platform.OS === 'android') {
-            const apiLevel = Platform.constants?.Release
-                ? parseInt(Platform.constants.Release, 10)
-                : 0;
-
-            if (apiLevel >= 13) {
-                const granted = await PermissionsAndroid.request(
-                    'android.permission.READ_MEDIA_IMAGES'
-                );
-                return granted === PermissionsAndroid.RESULTS.GRANTED;
-            } else {
-                const granted = await PermissionsAndroid.request(
-                    PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
-                );
-                return granted === PermissionsAndroid.RESULTS.GRANTED;
+            try {
+                if (Platform.Version >= 33) {
+                    const granted = await PermissionsAndroid.request(
+                        PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
+                    );
+                    return granted === PermissionsAndroid.RESULTS.GRANTED;
+                } else {
+                    const granted = await PermissionsAndroid.request(
+                        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
+                    );
+                    return granted === PermissionsAndroid.RESULTS.GRANTED;
+                }
+            } catch (err) {
+                console.log(err);
+                return false;
             }
         }
         return true;
     };
 
-    const fetchGalleryImages = async (filterType = 'All') => {
-        setLoading(true);
+    // =========================
+    // Fetch Gallery (Pagination)
+    // =========================
+    const fetchGalleryImages = useCallback(
+        async (filterType = 'All', loadMore = false) => {
+            if (loading) return;
 
-        const hasPerm = await requestGalleryPermission();
-        if (!hasPerm) {
-            Alert.alert('Permission required', 'Please allow gallery access.');
-            setLoading(false);
-            return;
-        }
+            setLoading(true);
 
-        try {
-            const photos = await CameraRoll.getPhotos({
-                first: 60,
-                assetType: filterType, // All | Photos | Videos
-            });
+            const hasPerm = await requestGalleryPermission();
+            if (!hasPerm) {
+                Alert.alert('Permission required', 'Please allow gallery access.');
+                setLoading(false);
+                return;
+            }
 
-            setImages(
-                photos.edges.map((edge, idx) => ({
-                    id: edge.node.image.uri + idx,
+            try {
+                const photos = await CameraRoll.getPhotos({
+                    first: 50, // batch size
+                    assetType: filterType,
+                    after: loadMore ? endCursor : undefined,
+                });
+
+                const newImages = photos.edges.map((edge, index) => ({
+                    id: edge.node.image.uri + index,
                     uri: edge.node.image.uri,
-                }))
-            );
-        } catch (e) {
-            console.error('CameraRoll.getPhotos error:', e);
-            Alert.alert(
-                'Error',
-                `Could not load gallery images.\n${e?.message || e}`
-            );
-        }
+                    type: edge.node.type,
+                }));
 
-        setLoading(false);
-    };
+                setImages(prev =>
+                    loadMore ? [...prev, ...newImages] : newImages
+                );
+
+                setEndCursor(photos.page_info.end_cursor);
+                setHasNextPage(photos.page_info.has_next_page);
+            } catch (error) {
+                console.log('Gallery Error:', error);
+                Alert.alert('Error', 'Unable to load gallery.');
+            }
+
+            setLoading(false);
+        },
+        [endCursor, loading]
+    );
+
+    // =========================
+    // Reset When Open / Filter Change
+    // =========================
+    useEffect(() => {
+        if (visible) {
+            setImages([]);
+            setEndCursor(null);
+            setHasNextPage(true);
+            fetchGalleryImages(selectedFilter);
+        }
+    }, [visible, selectedFilter]);
+
+    // =========================
+    // Render Item
+    // =========================
+    const renderItem = ({ item }) => (
+        <TouchableOpacity
+            style={styles.imageWrapper}
+            onPress={() => onSelect(item)}
+        >
+            <Image source={{ uri: item.uri }} style={styles.image} />
+        </TouchableOpacity>
+    );
 
     return (
         <Modal
@@ -115,7 +147,7 @@ const CustomGallery = ({ visible, onClose, onSelect }) => {
 
                     {/* Filter Bar */}
                     <View style={styles.filterBar}>
-                        {FILTERS.map((filter) => (
+                        {FILTERS.map(filter => (
                             <TouchableOpacity
                                 key={filter.value}
                                 style={[
@@ -141,21 +173,21 @@ const CustomGallery = ({ visible, onClose, onSelect }) => {
                     {/* Gallery */}
                     <FlatList
                         data={images}
-                        keyExtractor={(item) => item.id}
+                        keyExtractor={item => item.id}
                         numColumns={numColumns}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity
-                                style={styles.imageWrapper}
-                                onPress={() => onSelect(item)}
-                            >
-                                <Image source={{ uri: item.uri }} style={styles.image} />
-                            </TouchableOpacity>
-                        )}
+                        renderItem={renderItem}
                         contentContainerStyle={styles.gallery}
+                        onEndReached={() => {
+                            if (hasNextPage) {
+                                fetchGalleryImages(selectedFilter, true);
+                            }
+                        }}
+                        onEndReachedThreshold={0.5}
+                        ListFooterComponent={
+                            loading ? <ActivityIndicator size="large" color={mainOrangeColor} /> : null
+                        }
                         ListEmptyComponent={
-                            loading ? (
-                                <CustomText style={styles.emptyText}>Loading...</CustomText>
-                            ) : (
+                            !loading && (
                                 <CustomText style={styles.emptyText}>
                                     No media found.
                                 </CustomText>

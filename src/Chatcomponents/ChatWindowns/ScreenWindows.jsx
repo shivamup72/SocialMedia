@@ -526,13 +526,20 @@ const ScreenWindows = ({ navigation, route }) => {
           )
         );
       } else if (action === 'receive_reaction_update' && messageData) {
+        // If the server provides all reactions for the message, use them directly
         setMessages(prevMessages =>
           prevMessages.map(msg => {
             if (msg.id === messageData.message_id) {
-              // Extract emoji using Unicode property escape to handle all emoji characters
+              // If messageData.reactions exists, use it directly (show all reactions)
+              if (Array.isArray(messageData.reactions)) {
+                return {
+                  ...msg,
+                  reactions: messageData.reactions
+                };
+              }
+              // Fallback: legacy single reaction update (keep old logic)
               const emojiMatch = messageData.content.match(/Reacted\s+(\p{Emoji})\s+to/gu);
               const emoji = emojiMatch ? emojiMatch[0].match(/\p{Emoji}/gu)[0] : '❤️';
-              console.log('emoji -=-=-=-=-=------->', emoji, '\n', '\n');
               const newReaction = {
                 reaction_id: messageData.id,
                 reaction: emoji,
@@ -542,17 +549,14 @@ const ScreenWindows = ({ navigation, route }) => {
                 avatar: null,
                 created_at: messageData.created_at
               };
-
-              // Check if user already has a reaction on this message
-              const existingReactionIndex = msg.reactions?.findIndex(
-                r => r.id === messageData.user_id
-              );
+              // Add or update this reaction (legacy fallback)
               const updatedReactions = [...(msg.reactions || [])];
+              const existingReactionIndex = updatedReactions.findIndex(
+                r => r.id === messageData.user_id && r.reaction === emoji
+              );
               if (existingReactionIndex > -1) {
-                // Update existing reaction
                 updatedReactions[existingReactionIndex] = newReaction;
               } else {
-                // Add new reaction
                 updatedReactions.push(newReaction);
               }
               return {
@@ -681,8 +685,6 @@ const ScreenWindows = ({ navigation, route }) => {
     }
   }, [messages]);
   // console.log('Message data check  -=-=-=--------->', JSON.stringify(lastMessage?.action), '\n', '\n');
-
-
   const dismissReactionPicker = useCallback(() => {
     if (reactionPickerState.visible) {
       setReactionPickerState({ visible: false, message: null, positionY: 0 });
@@ -727,8 +729,6 @@ const ScreenWindows = ({ navigation, route }) => {
     },
     [headerHeight, insets.top, selectedMessages, reactionPickerState.visible],
   );
-
-
   const handleSelectReaction = useCallback(
     reaction => {
       const { message } = reactionPickerState;
@@ -741,22 +741,49 @@ const ScreenWindows = ({ navigation, route }) => {
         is_group: route?.params?.isGroup || false,
       };
       console.log(payload, "Reaction payload -=-=-=-=-=------->");
+
       setMessages(prevMessages =>
         prevMessages.map(msg => {
           if (msg.id === message.id) {
-            const existingReactionIndex = msg.reactions?.findIndex(
-              r => r.reaction === reaction && r.user_id === User,
+            // Check if the current user already reacted with this emoji
+            const alreadyReacted = (msg.reactions || []).some(
+              r => r.reaction === reaction && (r.id === User || r.user_id === User)
             );
-
-            if (existingReactionIndex >= 0) {
-              const updatedReactions = [...(msg.reactions || [])];
-              updatedReactions.splice(existingReactionIndex, 1);
+            if (alreadyReacted) {
+              // Remove only this reaction (not all user's reactions)
+              const updatedReactions = (msg.reactions || []).filter(
+                r => !(r.reaction === reaction && (r.id === User || r.user_id === User))
+              );
+              sendMessage({
+                action: 'add_reaction',
+                message_id: message.id,
+                reaction: reaction,
+                is_group: route?.params?.isGroup || false,
+              });
+              sendMessage({
+                action: 'get_message_reactions',
+                message_id: message.id,
+                reaction: reaction,
+                is_group: route?.params?.isGroup || false,
+              });
               return {
                 ...msg,
-                reactions:
-                  updatedReactions.length > 0 ? updatedReactions : null,
+                reactions: updatedReactions.length > 0 ? updatedReactions : null,
               };
             } else {
+              // Add new reaction, allow multiple different reactions per user
+              sendMessage({
+                action: 'add_reaction',
+                message_id: message.id,
+                reaction: reaction,
+                is_group: route?.params?.isGroup || false,
+              });
+              sendMessage({
+                action: 'get_message_reactions',
+                message_id: message.id,
+                reaction: reaction,
+                is_group: route?.params?.isGroup || false,
+              });
               return {
                 ...msg,
                 reactions: [
@@ -773,17 +800,8 @@ const ScreenWindows = ({ navigation, route }) => {
             }
           }
           return msg;
-        }),
+        })
       );
-
-      sendMessage(payload);
-      // Immediately fetch updated reactions for this message
-      sendMessage({
-        action: 'get_message_reactions',
-        message_id: message.id,
-        reaction: reaction,
-        is_group: route?.params?.isGroup || false,
-      });
 
       dismissReactionPicker();
       setSelectedMessages([]);
@@ -850,33 +868,35 @@ const ScreenWindows = ({ navigation, route }) => {
     // console.log(pinnedMessage, "pinnedMessage==========>");
     if (!pinnedMessage) return null;
     return (
-      <View style={styles.pinnedBannerContainer}>
-        <View style={styles.pinnedBannerLeft}>
-          <PinSvg width="18" height="18" color={mainOrangeColor} />
-          <View style={{ flex: 1, left: RfW(5) }}>
-            <CustomText style={styles.pinnedBannerText} numberOfLines={1}>
-              {pinnedMessage.content}
-            </CustomText>
-            <CustomText style={styles.pinnedBannerMeta} numberOfLines={1}>
-              {pinnedMessage.senderName ? pinnedMessage.senderName : 'You'}
-              {pinnedMessage.timestamp ? ` • ${pinnedMessage.timestamp}` : ''}
-            </CustomText>
+      <>
+        <View style={styles.pinnedBannerContainer}>
+          <View style={styles.pinnedBannerLeft}>
+            <PinSvg width="18" height="18" color={mainOrangeColor} />
+            <View style={{ flex: 1, left: RfW(5) }}>
+              <CustomText style={styles.pinnedBannerText} numberOfLines={1}>
+                {pinnedMessage.content}
+              </CustomText>
+              <CustomText style={styles.pinnedBannerMeta} numberOfLines={1}>
+                {pinnedMessage.senderName ? pinnedMessage.senderName : 'You'}
+                {pinnedMessage.timestamp ? ` • ${pinnedMessage.timestamp}` : ''}
+              </CustomText>
+            </View>
           </View>
+          <Pressable onPress={() => {
+            // Unpin the message
+            setMessages(prev => prev.map(msg => msg.id === pinnedMessage.id ? { ...msg, pinned: false } : msg));
+            sendMessage({
+              action: 'toggle_pin_message',
+              message_id: pinnedMessage.id,
+              conversation_id: conversationId,
+              pin: false,
+              is_group: route?.params?.isGroup || false,
+            });
+          }} style={styles.pinnedBannerClose}>
+            <CustomText style={styles.pinnedBannerCloseText}>✕</CustomText>
+          </Pressable>
         </View>
-        <Pressable onPress={() => {
-          // Unpin the message
-          setMessages(prev => prev.map(msg => msg.id === pinnedMessage.id ? { ...msg, pinned: false } : msg));
-          sendMessage({
-            action: 'toggle_pin_message',
-            message_id: pinnedMessage.id,
-            conversation_id: conversationId,
-            pin: false,
-            is_group: route?.params?.isGroup || false,
-          });
-        }} style={styles.pinnedBannerClose}>
-          <CustomText style={styles.pinnedBannerCloseText}>✕</CustomText>
-        </Pressable>
-      </View>
+      </>
     );
   };
 

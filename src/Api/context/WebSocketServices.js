@@ -427,6 +427,7 @@ export const WebSocketProvider = ({children}) => {
       ) {
         // App coming to foreground
         reconnectAttempts.current = 0;
+        connecting.current = false; // Ensure not blocked
         if (HubId) {
           await connectSocket(true);
         }

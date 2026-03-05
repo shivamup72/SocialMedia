@@ -71,6 +71,7 @@ import CustomText from '../../utils/CustomText';
 import { normalize, RfH, RfW } from '../../utils/helper';
 import ScreenView from '../../utils/ScreenView';
 import { useSettings } from '../../Api/context/SettingsContext.js';
+import LinearGradient from 'react-native-linear-gradient';
 
 const COLORS = {
   primaryOrange: mainOrangeColor,
@@ -443,18 +444,22 @@ const SignUpScreen = ({
         email: normalizedEmail,
         login_type: 'email_verify',
       };
+
       // Replace with your actual API call
       const response = await fetch(`${Base_url}users/auth/send_otp/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', },
         body: JSON.stringify(payload),
       });
+      console.log(response, "api response in auth");
+
       const data = await response.json();
       if (data?.success) {
         setOtpSent(true);
         setShowOtpInput(true);
         toastRef.current?.show?.({ type: 'success', message: data?.message });
       } else {
+
         toastRef.current?.show?.({ type: 'error', message: data?.message });
       }
     } catch (e) {
@@ -1227,6 +1232,35 @@ const JoinOrCreateHubScreen = ({ onJoinPress, onCreatePress }) => {
   );
 };
 
+const GradientLoader = () => {
+  // Skeleton loader styled like hub list items
+  return (
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: mainWhiteColor,
+      // borderRadius: 5,
+      // padding: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+      width: '100%',
+    }}>
+      {[...Array(2)].map((_, idx) => (
+        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f2f2f2', borderRadius: 5, padding: 12, paddingVertical: 10, marginBottom: 12, width: '100%', opacity: 0.7 }}>
+          <View style={{ width: RfW(40), height: RfH(40), borderRadius: 35, backgroundColor: '#e0e0e0', marginRight: 16 }} />
+          <View style={{ flex: 1 }}>
+            <View style={{ width: '60%', height: 16, backgroundColor: '#e0e0e0', borderRadius: 4, marginBottom: 6 }} />
+            <View style={{ width: '40%', height: 12, backgroundColor: '#e0e0e0', borderRadius: 4 }} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+};
+
 const HubListingScreen = ({
   HubData,
   setHubData,
@@ -1238,102 +1272,126 @@ const HubListingScreen = ({
   const { connect, } = useWebSocket();
   const { updateSettings, } = useSettings();
   const [hubList1, setHubList1] = useState([]);
+  const [loading, setLoading] = useState(false);
+  // useEffect(() => {
+  //   const FetchData = async () => {
+  //     try {
+  //       const res = await GetCreateWorkSpaceApi({});
 
+  //       console.log('res Hub Listing', JSON.stringify(res));
+  //       setHubList1(res?.results);
+  //     } catch (error) {
+  //       console.log('error Hub Listing', error);
+  //     }
+  //   };
+
+  //   FetchData();
+  // }, []);
   useEffect(() => {
     const FetchData = async () => {
       try {
+        setLoading(true);
         const res = await GetCreateWorkSpaceApi({});
-
         console.log('res Hub Listing', JSON.stringify(res));
         setHubList1(res?.results);
       } catch (error) {
         console.log('error Hub Listing', error);
+      } finally {
+        setLoading(false);
       }
     };
 
     FetchData();
   }, []);
 
-  const renderHubItem = ({ item }) => (
-    <TouchableOpacity
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 5,
-        padding: 12,
-        paddingVertical: 10,
-        marginBottom: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-        width: '100%',
-      }}
-      onPress={async () => {
-        // await AsyncStorage1.setItem('HubId', String(item.id));
-        // await AsyncStorage1.setItem('HubName', String(item.name));
-        // await AsyncStorage1.setItem('isLoggedIn', 'true');
-        // updateSettings({ newHubId: item.id });
-        // connect();
-        // console.log(item.id, 'Selected Hub ID', item.name, 'Selected Hub Name');
+  const renderHubItem = ({ item }) => {
+    if (loading) {
+      return <GradientLoader />;
+    }
 
-        // dispatch(setAuthenticated(true));
-
-        await AsyncStorage1.setItem('HubId', JSON.stringify(item.id));
-        await AsyncStorage1.setItem('HubName', JSON.stringify(item.name));
-        dispatch(setAuthenticated(true));
-        updateSettings({
-          newHubId: item.id,
-        });
-        connect();
-        await AsyncStorage1.setItem('isLoggedIn', 'true');
-        navigation.replace('Home');
-      }}>
-      <View
+    return (
+      <TouchableOpacity
         style={{
-          width: 40,
-          height: 40,
-          borderWidth: 1,
-          borderColor: DarkColor60,
-          borderRadius: 35,
-          marginRight: 16,
-        }}>
-        <Image
-          source={item?.logo ? { uri: item?.logo } : RocketImage}
-          style={{
-            width: 35,
-            height: 35,
-          }}
-          resizeMode="contain"
-        />
-      </View>
-      <View style={{ flex: 1 }}>
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: '#FFFFFF',
+          borderRadius: 5,
+          padding: 12,
+          paddingVertical: 10,
+          marginBottom: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 2,
+          width: '100%',
+        }}
+        onPress={async () => {
+          await AsyncStorage1.setItem('HubId', JSON.stringify(item.id));
+          await AsyncStorage1.setItem('HubName', JSON.stringify(item.name));
+
+          dispatch(setAuthenticated(true));
+
+          updateSettings({
+            newHubId: item.id,
+          });
+
+          connect();
+
+          await AsyncStorage1.setItem('isLoggedIn', 'true');
+
+          navigation.replace('Home');
+        }}
+      >
         <View
           style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
-          <CustomText
+            width: 40,
+            height: 40,
+            borderWidth: 1,
+            borderColor: DarkColor60,
+            borderRadius: 35,
+            marginRight: 16,
+          }}
+        >
+          <Image
+            source={item?.logo ? { uri: item?.logo } : RocketImage}
             style={{
-              fontFamily: fonts.PoppinsSemiBold,
-              fontSize: 12,
-              color: DarkColor,
-            }}>
-            {item?.name}
-          </CustomText>
-
+              width: 35,
+              height: 35,
+            }}
+            resizeMode="contain"
+          />
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+
+        <View style={{ flex: 1 }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <CustomText
+              style={{
+                fontFamily: fonts.PoppinsSemiBold,
+                fontSize: 12,
+                color: DarkColor,
+              }}
+            >
+              {item?.name}
+            </CustomText>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <ScreenView>
       <StatusBar backgroundColor={mainOrangeColor} barStyle="light-content" />
       <View style={styles.headerCurve} />
+
+
       <View style={{ flex: 1, width: '100%' }}>
         <FlatList
           style={{ width: '100%', flex: 1, height: 400 }}

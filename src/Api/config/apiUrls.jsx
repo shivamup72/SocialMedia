@@ -1,4 +1,4 @@
-export const SetupProfrl = 'https://r-one.stag.api.riggleapp.in/api/';
+// export const SetupProfrl = 'https://r-one.stag.api.riggleapp.in/api/';
 export const Base_url = 'https://r-one.stag.api.riggleapp.in/api/';
 
 export const getApiURL1 = endpoint => Base_url + endpoint;

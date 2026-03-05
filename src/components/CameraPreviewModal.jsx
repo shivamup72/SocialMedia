@@ -1,54 +1,87 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Modal, View, TouchableOpacity, Image, StyleSheet, Text } from 'react-native';
-import { Camera, useCameraDevices } from 'react-native-vision-camera';
+import {
+    Modal,
+    View,
+    TouchableOpacity,
+    Image,
+    StyleSheet,
+    Alert,
+    ActivityIndicator,
+    Linking,
+} from 'react-native';
+import {
+    Camera,
+    useCameraDevices,
+} from 'react-native-vision-camera';
 import CustomText from '../utils/CustomText';
 
 const CameraPreviewModal = ({ visible, onClose, onConfirm }) => {
+    const camera = useRef(null);
+
     const [photo, setPhoto] = useState(null);
     const [hasPermission, setHasPermission] = useState(false);
-    const camera = useRef(null);
-    const devices = useCameraDevices(hasPermission ? 'wide-angle-camera' : undefined);
-    const device = devices.back;
+    const [isLoading, setIsLoading] = useState(true);
 
-    const requestPermission = async () => {
-        console.log("Grant permission called");
-        const status = await Camera.requestCameraPermission();
-        if (status === 'authorized') {
-            setHasPermission(true);
-        } else {
-            setHasPermission(false);
-        }
-    };
+    const devices = useCameraDevices();
+    const device = devices?.back;
 
+    // ==========================
+    // Permission Handling
+    // ==========================
     useEffect(() => {
-        let timeout;
-        (async () => {
-            let status = await Camera.getCameraPermissionStatus();
-            if (status !== 'authorized') {
-                status = await Camera.requestCameraPermission();
-            }
-            setHasPermission(status === 'authorized');
-            // Fallback: if permission dialog is ignored, show error after 5 seconds
-            if (status !== 'authorized') {
-                timeout = setTimeout(() => {
-                    setHasPermission(false);
-                }, 5000);
-            }
-        })();
-        return () => {
-            if (timeout) clearTimeout(timeout);
-        };
+        if (visible) {
+            checkPermission();
+        }
     }, [visible]);
 
+    const checkPermission = async () => {
+        setIsLoading(true);
+
+        let status = await Camera.getCameraPermissionStatus();
+        console.log('Camera permission status:', status);
+
+        if (status === 'not-determined') {
+            status = await Camera.requestCameraPermission();
+        }
+
+        if (status === 'denied' || status === 'restricted') {
+            Alert.alert(
+                'Permission Required',
+                'Please enable camera permission from settings.',
+                [
+                    {
+                        text: 'Open Settings',
+                        onPress: () => Linking.openSettings(),
+                    },
+                    { text: 'Cancel', style: 'cancel' },
+                ]
+            );
+        }
+
+        setHasPermission(status === 'authorized');
+        setIsLoading(false);
+    };
+
+    // ==========================
+    // Take Photo
+    // ==========================
     const takePhoto = async () => {
-        if (camera.current) {
-            const photo = await camera.current.takePhoto({});
-            setPhoto(photo);
+        try {
+            if (camera.current) {
+                const result = await camera.current.takePhoto({
+                    flash: 'off',
+                });
+                setPhoto(result);
+            }
+        } catch (error) {
+            console.log('Take Photo Error:', error);
         }
     };
 
     const handleConfirm = () => {
-        onConfirm(photo);
+        if (photo) {
+            onConfirm(photo);
+        }
         setPhoto(null);
         onClose();
     };
@@ -58,49 +91,92 @@ const CameraPreviewModal = ({ visible, onClose, onConfirm }) => {
     };
 
     return (
-        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+        <Modal
+            visible={visible}
+            animationType="slide"
+            onRequestClose={onClose}
+        >
             <View style={styles.container}>
-                {!hasPermission && (
-                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                        <CustomText style={{ color: '#fff', textAlign: 'center', marginBottom: 16 }}>
-                            Requesting camera permission...
+                {/* Loading */}
+                {isLoading && (
+                    <View style={styles.center}>
+                        <ActivityIndicator size="large" color="#fff" />
+                        <CustomText style={styles.loadingText}>
+                            Checking Permission...
                         </CustomText>
                     </View>
                 )}
-                {hasPermission && !photo && (!device ? (
-                    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                        <CustomText style={{ color: '#fff' }}>Loading camera...</CustomText>
-                    </View>
-                ) : (
+
+                {/* Camera */}
+                {!isLoading && hasPermission && device && !photo && (
                     <Camera
-                        key={hasPermission ? 'camera-on' : 'camera-off'}
                         ref={camera}
-                        style={styles.camera}
+                        style={StyleSheet.absoluteFill}
                         device={device}
-                        isActive={true}
+                        isActive={visible}
                         photo={true}
                     />
-                ))}
-                {hasPermission && photo && (
-                    <Image source={{ uri: photo.path }} style={styles.preview} />
                 )}
+
+                {/* Device Not Found */}
+                {!isLoading && hasPermission && !device && (
+                    <View style={styles.center}>
+                        <CustomText style={styles.loadingText}>
+                            No Camera Device Found
+                        </CustomText>
+                    </View>
+                )}
+
+                {/* Preview */}
+                {photo && (
+                    <Image
+                        source={{ uri: 'file://' + photo.path }}
+                        style={styles.preview}
+                    />
+                )}
+
+                {/* Controls */}
                 <View style={styles.controls}>
-                    {hasPermission && !photo ? (
-                        <TouchableOpacity style={styles.captureButton} onPress={takePhoto}>
-                            <CustomText style={styles.buttonText}>Capture</CustomText>
+                    {!photo && hasPermission && device && (
+                        <TouchableOpacity
+                            style={styles.captureButton}
+                            onPress={takePhoto}
+                        >
+                            <CustomText style={styles.buttonText}>
+                                Capture
+                            </CustomText>
                         </TouchableOpacity>
-                    ) : hasPermission && photo ? (
+                    )}
+
+                    {photo && (
                         <>
-                            <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-                                <CustomText style={styles.buttonText}>Send</CustomText>
+                            <TouchableOpacity
+                                style={styles.confirmButton}
+                                onPress={handleConfirm}
+                            >
+                                <CustomText style={styles.buttonText}>
+                                    Send
+                                </CustomText>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.retakeButton} onPress={handleRetake}>
-                                <CustomText style={styles.buttonText}>Retake</CustomText>
+
+                            <TouchableOpacity
+                                style={styles.retakeButton}
+                                onPress={handleRetake}
+                            >
+                                <CustomText style={styles.buttonText}>
+                                    Retake
+                                </CustomText>
                             </TouchableOpacity>
                         </>
-                    ) : null}
-                    <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                        <CustomText style={styles.buttonText}>Close</CustomText>
+                    )}
+
+                    <TouchableOpacity
+                        style={styles.closeButton}
+                        onPress={onClose}
+                    >
+                        <CustomText style={styles.buttonText}>
+                            Close
+                        </CustomText>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -108,16 +184,55 @@ const CameraPreviewModal = ({ visible, onClose, onConfirm }) => {
     );
 };
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#000' },
-    camera: { flex: 1, width: '100%', height: '100%' },
-    preview: { flex: 1, resizeMode: 'contain' },
-    controls: { flexDirection: 'row', justifyContent: 'space-around', padding: 16 },
-    captureButton: { backgroundColor: '#2196F3', padding: 12, borderRadius: 8 },
-    confirmButton: { backgroundColor: '#4CAF50', padding: 12, borderRadius: 8 },
-    retakeButton: { backgroundColor: '#FFC107', padding: 12, borderRadius: 8 },
-    closeButton: { backgroundColor: '#F44336', padding: 12, borderRadius: 8 },
-    buttonText: { color: '#fff', fontWeight: 'bold' },
-});
-
 export default CameraPreviewModal;
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    preview: {
+        flex: 1,
+        resizeMode: 'contain',
+    },
+    center: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        color: '#fff',
+        marginTop: 10,
+    },
+    controls: {
+        position: 'absolute',
+        bottom: 40,
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+    },
+    captureButton: {
+        backgroundColor: '#2196F3',
+        padding: 12,
+        borderRadius: 8,
+    },
+    confirmButton: {
+        backgroundColor: '#4CAF50',
+        padding: 12,
+        borderRadius: 8,
+    },
+    retakeButton: {
+        backgroundColor: '#FFC107',
+        padding: 12,
+        borderRadius: 8,
+    },
+    closeButton: {
+        backgroundColor: '#F44336',
+        padding: 12,
+        borderRadius: 8,
+    },
+    buttonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+    },
+});

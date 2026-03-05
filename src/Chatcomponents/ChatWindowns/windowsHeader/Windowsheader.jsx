@@ -614,15 +614,19 @@ const Windowsheader = ({
           <View style={styles.deleteModalContainer}>
             <CustomText style={styles.deleteModalTitle}>Delete Message ?</CustomText>
             <View style={styles.deleteModalButtonRow}>
-              <TouchableOpacity
-                style={styles.deleteModalCancelButton}
-                onPress={() => {
-                  setDeleteMeetingModalVisible(false);
-                  handleDeleteConfirmedModal('for_everyone');
-                }}
-              >
-                <CustomText style={styles.deleteModalCancelText}>Delete for everyone</CustomText>
-              </TouchableOpacity>
+              {selectedMessage?.content == "" || selectedMessage?.content == undefined ? null : (
+                <TouchableOpacity
+                  style={styles.deleteModalCancelButton}
+                  onPress={() => {
+                    setDeleteMeetingModalVisible(false);
+                    handleDeleteConfirmedModal('for_everyone');
+                  }}
+                >
+                  <CustomText style={styles.deleteModalCancelText}>
+                    Delete for everyone
+                  </CustomText>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[styles.deleteModalDeleteButton, { paddingVertical: RfH(24) }]}
                 onPress={() => {

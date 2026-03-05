@@ -112,6 +112,9 @@ const CreateWorkSpaceScreen = React.memo(
     setHubData,
     companyName,
     setCompanyName,
+    domain,
+    setDomain,
+    handleSkipForNow
   }) => {
     const { settings, SelectedMembers, updateSettings } = useSettings();
 
@@ -135,13 +138,10 @@ const CreateWorkSpaceScreen = React.memo(
         }
         formData.append('name', hubName.trim());
         formData.append('company_name', companyName.trim());
-        formData.append('type', 'work');
-        formData.append('domain', 'riggle');
-        // formData.append('workspace_type', 'work');
-        console.log('formData -=-=-=-=-=----->kkk', formData);
+        formData.append('workspace_type', 'work');
+        formData.append('domain', domain.trim());
         const response = await PostCreateWorkSpaceApi(formData);
-        console.log('response -=-=-=-=-=----->', response);
-
+        console.log('new workspace response -=-=-=-=-=----->', response);
         // console.log('slk sk de   -=--==->', response, '\n', '\n');
         setHubData(response);
         const newHubId = response?.data?.workspace_id;
@@ -154,7 +154,8 @@ const CreateWorkSpaceScreen = React.memo(
         });
         await AsyncStorage1.setItem('HubName', JSON.stringify(hubName));
         connect();
-        navigateToStep(3);
+        // navigateToStep(3);
+        handleSkipForNow();
       } catch (error) {
         console.error('Error creating workspace:', error);
         Alert.alert(
@@ -242,6 +243,19 @@ const CreateWorkSpaceScreen = React.memo(
                 placeholder="Enter Company name"
                 accessibilityLabel="Company name input"
                 accessibilityHint="Enter your company name"
+                maxLength={18}
+                placeholderTextColor={DarkCOlor30}
+                allowFontScaling={false}
+              />
+
+              <CustomText style={styles.inputLabel}>Domain Name</CustomText>
+              <TextInput
+                style={styles.textInput}
+                value={domain}
+                onChangeText={setDomain}
+                placeholder="Enter Domain name"
+                accessibilityLabel="Domain name input"
+                accessibilityHint="Enter your domain name"
                 maxLength={18}
                 placeholderTextColor={DarkCOlor30}
                 allowFontScaling={false}
@@ -392,6 +406,8 @@ const CreateHubScreen = ({ type, route }) => {
   const [selectedType, setSelectedType] = useState('Personal');
   const [hubName, setHubName] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [domain, setDomain] = useState('');
+
   const [organizations, setOrganizations] = useState([
     { id: Date.now(), name: '' },
   ]);
@@ -494,6 +510,8 @@ const CreateHubScreen = ({ type, route }) => {
             companyName={companyName}
             setHubName={setHubName}
             setCompanyName={setCompanyName}
+            domain={domain}
+            setDomain={setDomain}
             selectedType={selectedType}
             setSelectedType={setSelectedType}
             organizations={organizations}
@@ -502,6 +520,7 @@ const CreateHubScreen = ({ type, route }) => {
             setIsLoading={setIsLoading}
             navigateToStep={navigateToStep}
             setHubData={setHubData}
+            handleSkipForNow={handleSkipForNow}
           />
         );
       case 3:
