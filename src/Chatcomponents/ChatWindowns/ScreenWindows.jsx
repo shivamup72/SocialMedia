@@ -599,8 +599,18 @@ const ScreenWindows = ({ navigation, route }) => {
         setHasMore(true);
       }
       setMessages(prevMessages => {
+        // Remove optimistic messages that now have real counterparts from server
+        const nonOptimisticMessages = prevMessages.filter(msg => {
+          if (!msg.optimistic) return true;
+          // Check if a real message with same content exists in fetched messages
+          const hasRealMessage = fetchedMessages.some(
+            fetched => fetched.content === msg.content && !fetched.optimistic
+          );
+          return !hasRealMessage;
+        });
+        
         const messageMap = new Map();
-        prevMessages.forEach(msg => messageMap.set(msg.id, msg));
+        nonOptimisticMessages.forEach(msg => messageMap.set(msg.id, msg));
         fetchedMessages.forEach(msg => messageMap.set(msg.id, msg));
         return Array.from(messageMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       });
@@ -626,6 +636,25 @@ const ScreenWindows = ({ navigation, route }) => {
         setMessages(prevMessages => {
           const exists = prevMessages.some(m => m.id === normalizedNewMessage.id);
           if (exists) return prevMessages;
+          
+          // Check if this is our own message (replacing an optimistic message)
+          const isOwnMessage = normalizedNewMessage.isSender || 
+            String(normalizedNewMessage.senderId) === String(currentUser?.id);
+          
+          if (isOwnMessage) {
+            // Find and replace the optimistic message with matching content
+            const optimisticIndex = prevMessages.findIndex(
+              m => m.optimistic && m.content === normalizedNewMessage.content
+            );
+            
+            if (optimisticIndex !== -1) {
+              // Replace optimistic message with real message (which has real ID)
+              const newMessages = [...prevMessages];
+              newMessages[optimisticIndex] = normalizedNewMessage;
+              return newMessages;
+            }
+          }
+          
           return [normalizedNewMessage, ...prevMessages];
         });
       }
@@ -657,10 +686,12 @@ const ScreenWindows = ({ navigation, route }) => {
       ) {
         setConversations(lastMessage?.data?.conversation_id);
         setPage(1);
-        // Don't clear messages - preserve optimistic messages until real message arrives
-        // The optimistic message will be replaced when receive_new_message is received
         setHasMore(true);
         isScrolledUp.current = false;
+        loadMessages(1);
+      } else {
+        // For existing chats, also reload to get real message with correct ID
+        // This ensures optimistic message is replaced with server message
         loadMessages(1);
       }
       return;
