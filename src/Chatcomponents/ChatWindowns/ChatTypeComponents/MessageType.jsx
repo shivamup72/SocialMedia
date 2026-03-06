@@ -139,6 +139,7 @@ const INITIAL_LINES = 6;
 const MessageType = ({
   item,
   onLongPress,
+  onPress,
   isGroup,
   onRemoveReaction,
   navigation,
@@ -212,9 +213,13 @@ const MessageType = ({
               styles.sentMessageContainer,
               item?.isSender ? styles.senderWrapper : styles.receiverWrapper,
             ]}
-            onPress={() =>
-              StarListing ? handleStarLisingMessageUnstar(item) : null
-            }
+            onPress={() => {
+              if (StarListing) {
+                handleStarLisingMessageUnstar(item);
+              } else if (onPress) {
+                onPress();
+              }
+            }}
             onLongPress={StarListing ? null : handleLongPress}>
             <View style={{ flexDirection: 'row', }}>
               {/* My Message */}
@@ -347,9 +352,13 @@ const MessageType = ({
             ]}>
             <Pressable
               onLongPress={StarListing ? null : handleLongPress}
-              onPress={() =>
-                StarListing ? handleStarLisingMessageUnstar(item) : null
-              }>
+              onPress={() => {
+                if (StarListing) {
+                  handleStarLisingMessageUnstar(item);
+                } else if (onPress) {
+                  onPress();
+                }
+              }}>
               <View style={{ flexDirection: 'row', minHeight: 40 }}>
                 <View style={{ flexDirection: 'row' }}>
                   {isGroup && (

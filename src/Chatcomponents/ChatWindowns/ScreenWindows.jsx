@@ -917,46 +917,67 @@ const ScreenWindows = ({ navigation, route }) => {
       if (isSelected) {
         messageStyle = [messageStyle, { backgroundColor: '#fff4e2ff', borderRadius: 12 }];
       }
-      const toggleSelect = () => {
-        if (selectedMessages.length === 0) return; // Only allow onPress if selection mode is active
+      const handleMessagePress = () => {
+        // Only allow tap selection when already in selection mode
+        if (selectedMessages.length === 0) return;
+        
+        // Always hide reaction picker when tapping to select/deselect
+        setReactionPickerState({ visible: false, message: null, positionY: 0 });
+        
         setSelectedMessages(prev => {
           if (!prev || prev.length === 0) return prev;
-          if (prev.some(m => m && m.id === item.id)) {
-            if (prev.length === 1) {
-              setReactionPickerState({ visible: false, message: null, positionY: 0 });
-              return [];
-            }
+          
+          const isAlreadySelected = prev.some(m => m && m.id === item.id);
+          
+          if (isAlreadySelected) {
+            // Deselecting - if last item, exit selection mode
             return prev.filter(m => m && m.id !== item.id);
           } else {
+            // Add to selection
             return [...prev, item];
           }
         });
         setReplyCheck(false);
         setSelectedMessageStatus(item?.status);
       };
+      
+      const handleMessageLongPress = (e) => {
+        if (selectedMessages.length === 0) {
+          // First selection - show reaction picker
+          const { pageY } = e.nativeEvent;
+          const pickerYPosition = pageY - headerHeight - insets.top - 60;
+          setReactionPickerState({
+            visible: true,
+            message: item,
+            positionY: pickerYPosition,
+          });
+          setSelectedMessages([item]);
+        } else {
+          // Already in selection mode - toggle selection, hide picker
+          setReactionPickerState({ visible: false, message: null, positionY: 0 });
+          setSelectedMessages(prev => {
+            const isAlreadySelected = prev.some(m => m && m.id === item.id);
+            if (isAlreadySelected) {
+              return prev.filter(m => m && m.id !== item.id);
+            }
+            return [...prev, item];
+          });
+        }
+        setReplyCheck(false);
+        setSelectedMessageStatus(item?.status);
+      };
+      
       return (
         <Pressable
-          onLongPress={e => {
-            if (selectedMessages.length === 0) {
-              const { pageY } = e.nativeEvent;
-              const pickerYPosition = pageY - headerHeight - insets.top - 60;
-              setReactionPickerState({
-                visible: true,
-                message: item,
-                positionY: pickerYPosition,
-              });
-              setSelectedMessages([item]);
-              setReplyCheck(false);
-              setSelectedMessageStatus(item?.status);
-            }
-          }}
-          onPress={toggleSelect}
+          onLongPress={handleMessageLongPress}
+          onPress={handleMessagePress}
           style={messageStyle}
           disabled={item?.is_system_message}
         >
           <MessageType
             item={item}
             onLongPress={handleLongPressMessage}
+            onPress={handleMessagePress}
             isGroup={route?.params?.isGroup}
             onRemoveReaction={handleRemoveReaction}
             navigation={navigation}
@@ -1089,10 +1110,12 @@ const ScreenWindows = ({ navigation, route }) => {
         }
       } else {
         // Optimistic update for regular messages
-        // Pass optimisticMessage as second argument to sendMessage so it is only added once
         if (flatListRef.current) {
           flatListRef.current.scrollToOffset({ offset: 0, animated: true });
         }
+
+        // Add optimistic message to state immediately for instant UI feedback
+        setMessages(prevMessages => [optimisticMessage, ...prevMessages]);
 
         const action = route?.params?.isGroup
           ? 'send_group_message'
@@ -1108,18 +1131,13 @@ const ScreenWindows = ({ navigation, route }) => {
           messageObject.recipient_id = route?.params?.GroupId;
         }
 
-        sendMessage(messageObject, optimisticMessage);
+        sendMessage(messageObject);
 
-        // For new chats, don't load messages immediately - wait for "Message sent" response
-        // which will provide the conversation_id and trigger loadMessages
-        if (route?.params?.type === 'new') {
-          setNewMessage(true);
-          // Don't call loadMessages here - it will be called when we receive the conversation_id
-          // in the "Message sent" response handler
-        } else {
-          setNewMessage(true);
-          loadMessages(1);
-        }
+        // For new chats, the conversation_id will be provided in "Message sent" response
+        // For existing chats, the optimistic message is already visible and real message
+        // will arrive via receive_new_message WebSocket event (which replaces the optimistic one)
+        // No need to call loadMessages here - it causes duplicate messages
+        setNewMessage(true);
       }
     },
     [
@@ -1486,25 +1504,19 @@ const ScreenWindows = ({ navigation, route }) => {
 
       {/* WhatsApp-style emoji reaction picker overlay */}
       {reactionPickerState.visible && selectedMessages.length === 1 && (
-        <>
-          {/* Transparent overlay to dismiss picker on outside tap */}
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={dismissReactionPicker}
+        <View
+          style={[
+            styles.pickerWrapper,
+            { top: reactionPickerState.positionY, alignSelf: 'center', zIndex: 1000 },
+          ]}
+          pointerEvents="box-none"
+        >
+          <ReactionPicker
+            onSelectReaction={handleSelectReaction}
+            currentUserId={currentUser?.id}
+            message={reactionPickerState.message}
           />
-          <View
-            style={[
-              styles.pickerWrapper,
-              { top: reactionPickerState.positionY, alignSelf: 'center', zIndex: 1000 },
-            ]}
-          >
-            <ReactionPicker
-              onSelectReaction={handleSelectReaction}
-              currentUserId={currentUser?.id}
-              message={reactionPickerState.message}
-            />
-          </View>
-        </>
+        </View>
       )}
     </ScreenView>
   );
