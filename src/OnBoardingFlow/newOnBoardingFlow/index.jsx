@@ -32,6 +32,7 @@ import {
   dullBlack,
   DarkColor90,
   DarkCOlor30,
+  mainOrange25,
 } from '../../utils/style/fonts';
 import { useAuth } from '../../Api/context/AuthContext';
 import Toast from '../../Api/context/Toast';
@@ -142,9 +143,19 @@ const CustomTextInput = ({
   keyboardType = 'default',
   secureTextEntry = false,
   labelColor,
+  editable = true,
+  ...rest
 }) => (
   <View style={styles.inputContainer}>
-    <CustomText style={[styles.inputLabel, labelColor ? { color: labelColor } : null]}>{label}</CustomText>
+    <CustomText
+      style={[
+        styles.inputLabel,
+        labelColor ? { color: labelColor } : null,
+      ]}
+    >
+      {label}
+    </CustomText>
+
     <TextInput
       style={styles.inputField}
       placeholder={placeholder}
@@ -155,6 +166,15 @@ const CustomTextInput = ({
       autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
       secureTextEntry={secureTextEntry}
       allowFontScaling={false}
+      editable={editable}
+      maxLength={
+        keyboardType === 'number-pad' ||
+          keyboardType === 'numeric' ||
+          keyboardType === 'phone-pad'
+          ? 10
+          : undefined
+      }
+      {...rest}
     />
   </View>
 );
@@ -191,8 +211,8 @@ const WelcomeScreen = ({ onGetStarted }) => {
 const LoginOptionsScreen = ({
   onSelectEmail,
   toastRef,
-  isChecked,
-  setIsChecked,
+  // isChecked,
+  // setIsChecked,
   setHubData,
   setCurrentScreen,
   navigation,
@@ -201,17 +221,17 @@ const LoginOptionsScreen = ({
   const { signInWithGoogle, signInWithApple } = useAuth();
 
   const handleGoogleLogin = async () => {
-    if (!isChecked) {
-      toastRef.current.show({
-        type: 'error',
-        message: 'Please accept the terms and conditions.',
-      });
-      return;
-    }
+    // if (!isChecked) {
+    //   toastRef.current.show({
+    //     type: 'error',
+    //     message: 'Please accept the terms and conditions.',
+    //   });
+    //   return;
+    // }
     try {
       const result = await signInWithGoogle(AuthStatus);
       if (result?.success && result?.shouldNavigate) {
-        // console.log('result --==---->', JSON.stringify(result?.data));
+        console.log('result --==---->', JSON.stringify(result?.data));
         // connect();
         if (result?.data?.data?.workspace_exists) {
           setHubData(result?.data?.data?.workspaces);
@@ -226,13 +246,13 @@ const LoginOptionsScreen = ({
   };
 
   const handleAppleLogin = async () => {
-    if (!isChecked) {
-      toastRef.current.show({
-        type: 'error',
-        message: 'Please accept the terms and conditions',
-      });
-      return;
-    }
+    // if (!isChecked) {
+    //   toastRef.current.show({
+    //     type: 'error',
+    //     message: 'Please accept the terms and conditions',
+    //   });
+    //   return;
+    // }
     try {
       // console.log('handleAppleSignUp --==---->', JSON.stringify(AuthStatus));
       const result = await signInWithApple(AuthStatus);
@@ -292,33 +312,41 @@ const LoginOptionsScreen = ({
           icon={EmailImage}
           onPress={onSelectEmail}
         />
-        <View style={styles.termsContainer}>
-          <CheckBox
-            style={styles.checkboxEmpty}
-            isChecked={isChecked}
-            onClick={() => setIsChecked(!isChecked)}
-            checkBoxColor={mainWhiteColor}
-          />
-          <CustomText style={styles.termsText}>
-            By continuing, you agree to our{' '}
+        <View style={{ alignItems: 'center', marginVertical: 0 }}>
+          <CustomText
+            style={{
+              color: mainWhiteColor,
+              fontFamily: fonts.PoppinsRegular,
+              fontSize: 12,
+              textAlign: 'center',
+              lineHeight: 16,
+            }}
+          >
+            By continuing, you agree to our{'\n'}
             <CustomText
-              style={styles.linkText1}
-              onPress={() =>
-                Linking.openURL(
-                  'https://assets.riggleapp.in/static/rigglex-tnc.html',
-                )
-              }>
-              Terms & Conditions
-            </CustomText>{' '}
-            and{' '}
+              style={{
+                color: mainWhiteColor,
+                fontFamily: fonts.PoppinsRegular,
+                fontSize: 12,
+                textAlign: 'center',
+                lineHeight: 16,
+              }}
+              onPress={() => Linking.openURL('https://your-terms-url')}
+            >
+              Terms of Service
+            </CustomText>
+            {' '}and{' '}
             <CustomText
-              style={styles.linkText1}
-              onPress={() =>
-                Linking.openURL(
-                  'https://assets.riggleapp.in/static/rigglex-privacy-policy.html',
-                )
-              }>
-              Privacy Policy.
+              style={{
+                color: mainWhiteColor,
+                fontFamily: fonts.PoppinsRegular,
+                fontSize: 12,
+                textAlign: 'center',
+                lineHeight: 16,
+              }}
+              onPress={() => Linking.openURL('https://your-privacy-url')}
+            >
+              Privacy Policy
             </CustomText>
           </CustomText>
         </View>
@@ -360,65 +388,6 @@ const SignUpScreen = ({
   // const [workspaceList, setWorkspaceList] = useState([]);
   const { connect } = useWebSocket();
   const { settings, SelectedMembers, updateSettings, HubId } = useSettings();
-
-  // Workspace selection handler
-  // const handleWorkspaceSelect = async (workspace) => {
-  //   await AsyncStorage1.setItem('HubId', JSON.stringify(workspace.id));
-  //   await AsyncStorage1.setItem('HubName', JSON.stringify(workspace.name));
-  //   setWorkspaceSheetVisible(false);
-  //   dispatch(setAuthenticated(true));
-  //   updateSettings({
-  //     newHubId: workspace.id,
-  //   });
-  //   connect();
-  //   await AsyncStorage1.setItem('isLoggedIn', 'true');
-  //   navigation.replace('Home');
-  // };
-
-  // Workspace selection bottomsheet UI (moved outside SignUpScreen)
-  // const WorkspaceSelectionSheet = ({ visible, workspaceList, onSelect, onClose }) => {
-  //   return (
-  //     <Modal
-  //       visible={visible}
-  //       transparent
-  //       animationType="slide"
-  //       statusBarTranslucent
-  //       onRequestClose={onClose}
-  //     >
-  //       <TouchableWithoutFeedback onPress={onClose}>
-  //         <View style={styles.overlay}>
-  //           <TouchableWithoutFeedback>
-  //             <View style={styles.sheet}>
-  //               <CustomText style={styles.title}>Select Workspace</CustomText>
-  //               <FlatList
-  //                 data={workspaceList}
-  //                 keyExtractor={(item) => String(item.id)}
-  //                 removeClippedSubviews={false}
-  //                 keyboardShouldPersistTaps="handled"
-  //                 initialNumToRender={10}
-  //                 maxToRenderPerBatch={10}
-  //                 windowSize={5}
-  //                 showsVerticalScrollIndicator={false}
-  //                 renderItem={({ item }) => (
-  //                   <TouchableOpacity
-  //                     style={styles.item}
-  //                     onPress={() => onSelect(item)}
-  //                   >
-  //                     <CustomText style={styles.itemText}>
-  //                       {item.name}
-  //                     </CustomText>
-  //                   </TouchableOpacity>
-  //                 )}
-  //               />
-  //             </View>
-  //           </TouchableWithoutFeedback>
-  //         </View>
-  //       </TouchableWithoutFeedback>
-  //     </Modal>
-  //   );
-  // };
-  // OTP timer effect
-
   useEffect(() => {
     let interval;
     if (showOtpInput && isResendDisabled && timer > 0) {
@@ -434,36 +403,59 @@ const SignUpScreen = ({
   // Handler to send OTP (call /users/auth/send_otp/)
   const handleSendOtp = async () => {
     if (!email || email.trim() === '') {
-      toastRef.current?.show?.({ type: 'error', message: 'Please enter your email.' });
+      toastRef.current?.show?.({
+        type: 'error',
+        message: 'Please enter your email.',
+      });
       return;
     }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(normalizedEmail)) {
+      toastRef.current?.show?.({
+        type: 'error',
+        message: 'Please enter a valid email address.',
+      });
+      return;
+    }
+
     setLoading(true);
+
     try {
-      const normalizedEmail = email.trim().toLowerCase();
       const payload = {
         email: normalizedEmail,
         login_type: 'email_verify',
       };
 
-      // Replace with your actual API call
       const response = await fetch(`${Base_url}users/auth/send_otp/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      console.log(response, "api response in auth");
 
       const data = await response.json();
+
       if (data?.success) {
         setOtpSent(true);
         setShowOtpInput(true);
-        toastRef.current?.show?.({ type: 'success', message: data?.message });
+        toastRef.current?.show?.({
+          type: 'success',
+          message: data?.message,
+        });
       } else {
-
-        toastRef.current?.show?.({ type: 'error', message: data?.message });
+        toastRef.current?.show?.({
+          type: 'error',
+          message: data?.message,
+        });
       }
     } catch (e) {
-      toastRef.current?.show?.({ type: 'error', message: e?.message });
+      toastRef.current?.show?.({
+        type: 'error',
+        message: e?.message,
+      });
     } finally {
       setLoading(false);
     }
@@ -508,6 +500,8 @@ const SignUpScreen = ({
       }
       await AsyncStorage1.setItem('userLoginResponse', JSON.stringify(res));
       /** ---------------- USER FLAGS ---------------- */
+      console.log(res?.data?.onboarding?.flow, "=================res after login api==================");
+      const profileComplete = res?.data?.onboarding?.flow == null;
       const user = res?.data?.user;
       const onboarding = res?.data?.onboarding;
       const workspaces = res?.data?.workspaces || [];
@@ -517,12 +511,9 @@ const SignUpScreen = ({
       const flow = onboarding?.flow; // admin | member
       const shouldGoToProfile = isNewUser || isProfileIncomplete;
       /** ---------------- WORKSPACE HANDLING ---------------- */
-      if (workspaces.length > 1) {
-        // Multiple workspaces → open selector
-        // setWorkspaceList(workspaces);
-        // setWorkspaceSheetVisible(true);
-        setCurrentScreen('HubListingScreen')
-
+      // If user has multiple workspaces or profile is complete, go to HubListingScreen
+      if (workspaces.length > 1 || profileComplete) {
+        setCurrentScreen('HubListingScreen');
         return;
       }
 
@@ -543,13 +534,17 @@ const SignUpScreen = ({
 
         if (flow === 'member') {
           setCurrentScreen('MemberProfileSetupScreen');
-        } else {
+        } else if (flow === 'admin') {
           setCurrentScreen('ProfileSetupScreen');
+        } else {
+          dispatch(setAuthenticated(true));
+          await AsyncStorage1.setItem('isLoggedIn', 'true');
         }
         return; // 🚨 STOP HERE (no Home navigation)
       }
 
       /** ---------------- HOME FLOW ---------------- */
+      // Otherwise, authenticate and continue to Home
       dispatch(setAuthenticated(true));
       await AsyncStorage1.setItem('isLoggedIn', 'true');
 
@@ -561,6 +556,7 @@ const SignUpScreen = ({
         message: 'Login successful!',
       });
 
+      connect();
       navigation.replace('Home');
     } catch (error) {
       console.log('OTP Verify Error:', error);
@@ -572,8 +568,6 @@ const SignUpScreen = ({
       setLoading(false);
     }
   };
-
-
   // Handler to resend OTP (with real API logic)
   const handleResendOtp = async () => {
     setIsResendDisabled(true);
@@ -632,10 +626,11 @@ const SignUpScreen = ({
 
         {/* Content */}
         <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={{ flex: 1, justifyContent: 'center', height: '72%', position: 'absolute', bottom: RfH(0), width: '100%', }}>
+          <View style={{ flex: 1, justifyContent: 'center', height: '76%', position: 'absolute', bottom: RfH(0), width: '100%', }}>
             <ScrollView
               contentContainerStyle={{
                 flexGrow: 1,
@@ -643,6 +638,7 @@ const SignUpScreen = ({
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
+
               <View
                 style={{
                   paddingHorizontal: RfW(30),
@@ -661,6 +657,7 @@ const SignUpScreen = ({
                     labelColor={DarkColor}
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    editable={!otpSent}
                   />
                   {!otpSent && (
                     <TouchableOpacity
@@ -771,9 +768,9 @@ const SignUpScreen = ({
                     </TouchableOpacity>
                   )}
 
-                  <View style={{ top: RfH(10), width: '60%' }}>
+                  {/* <View style={{ top: RfH(10), width: '60%' }}>
                     <CustomText style={styles.termsText1}>By continuing, you agree to our Terms of Service and Privacy Policy</CustomText>
-                  </View>
+                  </View> */}
                 </View>
               </View>
 
@@ -797,7 +794,8 @@ const SignUpScreen = ({
 
 // Profile Setup Screen (matches screenshot)
 
-const ProfileSetupScreen = ({ navigation, dispatch }) => {
+const ProfileSetupScreen = ({ navigation, dispatch, email }) => {
+  const { connect } = useWebSocket();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [organisationName, setOrganisationName] = useState('');
@@ -848,27 +846,25 @@ const ProfileSetupScreen = ({ navigation, dispatch }) => {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      console.log('Profile setup response:', data);
+      // Prefer workspace.name, fallback to workspaces[0]?.name
+      const hubName = data?.data?.workspace?.name || data?.data?.workspaces?.[0]?.name || '';
+      console.log(hubName, "------------------");
+
+      await AsyncStorage1.setItem('HubName', String(hubName));
+
+      console.log('Profile setup response:', JSON.stringify(data));
       if (!res.ok) {
-        Alert.alert('Error', data?.message || 'Profile setup failed.');
+        Alert.alert('Error Profile setup', data?.message || 'Profile setup failed.');
       } else {
-        // Store workspace id in AsyncStorage1 if present
         if (data?.data?.workspace?.id) {
           const wid = String(data.data.workspace.id);
           await AsyncStorage1.setItem('workspace_id', wid);
-          // await AsyncStorage1.setItem('HubId', wid); // Store as plain string, not JSON
           await AsyncStorage1.setItem('userLoginResponse', JSON.stringify(data));
         }
-        // Fallback: if HubId is missing, set it from workspace_id
-        // let hubId = await AsyncStorage1.getItem('HubId');
-        // if (!hubId) {
-        //   const wid = await AsyncStorage1.getItem('workspace_id');
-        //   if (wid) await AsyncStorage1.setItem('HubId', wid);
-        // }
         dispatch(setAuthenticated(true));
         await AsyncStorage1.setItem('isLoggedIn', 'true');
-        // Alert.alert('Success', 'Profile setup complete!');
-        navigation.replace('Home');
+        connect();
+        navigation.replace('Home', { flag: 'fromProfileSetup' });
       }
     } catch (e) {
       Alert.alert('Error', e?.message || 'Profile setup failed.');
@@ -877,98 +873,137 @@ const ProfileSetupScreen = ({ navigation, dispatch }) => {
     }
   };
 
+  const handlePhoneChange = (text) => {
+    if (text && !/^[6-9]/.test(text)) {
+      setErrors(prev => ({
+        ...prev,
+        phoneNumber: 'Phone number must start from 6 to 9',
+      }));
+
+    } else {
+      setErrors(prev => ({
+        ...prev,
+        phoneNumber: '',
+      }));
+    }
+
+    // allow only numbers
+    const cleaned = text.replace(/[^0-9]/g, '');
+    setPhoneNumber(cleaned);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: mainWhiteColor }}>
       <View style={[styles.riggBackImage2, { alignSelf: 'flex-end' }]}>
         <Image source={AuthBackImage} style={{ height: '100%', width: '100%', left: RfH(24) }} resizeMode="contain" />
       </View>
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: 'center',
-          paddingHorizontal: RfW(30),
-          paddingTop: RfH(80),
-          paddingBottom: RfH(20),
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+        style={{ flex: 1 }}
       >
-        <CustomText style={{
-          fontSize: 24,
-          fontFamily: fonts.PoppinsSemiBold,
-          color: DarkColor,
-          marginBottom: RfH(10),
-          marginTop: RfH(10),
-        }}>
-          Set Up Your Profile
-        </CustomText>
-        <CustomTextInput
-          label="First Name*"
-          value={firstName}
-          onChangeText={setFirstName}
-          labelColor={DarkColor}
-        />
-        {errors.firstName && <CustomText style={styles.errormsg}>{errors.firstName}</CustomText>}
-        <CustomTextInput
-          label="Last Name*"
-          value={lastName}
-          onChangeText={setLastName}
-          labelColor={DarkColor}
-        />
-        {errors.lastName && <CustomText style={styles.errormsg}>{errors.lastName}</CustomText>}
-        <CustomTextInput
-          label="Organisation Name*"
-          value={organisationName}
-          onChangeText={setOrganisationName}
-          labelColor={DarkColor}
-        />
-        {errors.organisationName && <CustomText style={styles.errormsg}>{errors.organisationName}</CustomText>}
-        <CustomTextInput
-          label="Your Role*"
-          value={role}
-          onChangeText={setRole}
-          labelColor={DarkColor}
-        />
-        {errors.role && <CustomText style={styles.errormsg}>{errors.role}</CustomText>}
-        <CustomTextInput
-          label="Phone Number (optional)"
-          value={phoneNumber}
-          onChangeText={setPhoneNumber}
-          labelColor={DarkColor}
-          keyboardType="phone-pad"
-        />
-        {errors.phoneNumber && <CustomText style={styles.errormsg}>{errors.phoneNumber}</CustomText>}
-        <CustomTextInput
-          label="Reporting Manager (optional)"
-          value={reportingManager}
-          onChangeText={setReportingManager}
-          labelColor={DarkColor}
-        />
-        {errors.reportingManager && <CustomText style={styles.errormsg}>{errors.reportingManager}</CustomText>}
-        <TouchableOpacity
-          style={{
-            backgroundColor: mainOrangeColor,
-            width: '100%',
-            alignItems: 'center',
-            borderRadius: 8,
-            justifyContent: 'center',
-            height: 48,
-            marginTop: RfH(16),
-            marginBottom: RfH(8),
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          // keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: RfW(30),
+            paddingTop: RfH(80),
+            paddingBottom: RfH(20),
           }}
-          onPress={handleProfileSetup}
-          disabled={loading}
         >
-          <CustomText
-            style={{
-              color: mainWhiteColor,
-              fontFamily: fonts.PoppinsSemiBold,
-              fontSize: 16,
-            }}>
-            {loading ? 'Saving...' : 'Lets Go'}
+          <CustomText style={{
+            fontSize: 24,
+            fontFamily: fonts.PoppinsSemiBold,
+            color: DarkColor,
+            marginBottom: RfH(10),
+            marginTop: RfH(10),
+          }}>
+            Set Up Your Profile
           </CustomText>
-        </TouchableOpacity>
-      </ScrollView>
+          <CustomTextInput
+            label="Email ID"
+            value={email}
+            labelColor={DarkColor80}
+            editable={false}
+            style={[styles.inputField, { color: DarkColor50 }]}
+
+          />
+          <CustomTextInput
+            label="Phone Number (optional)"
+            value={phoneNumber}
+            onChangeText={handlePhoneChange}
+            labelColor={DarkColor}
+            keyboardType="phone-pad"
+          />
+
+          {errors.phoneNumber && (
+            <CustomText style={styles.errormsg}>
+              {errors.phoneNumber}
+            </CustomText>
+          )}
+          <CustomTextInput
+            label="First Name*"
+            value={firstName}
+            onChangeText={setFirstName}
+            labelColor={DarkColor}
+          />
+          {errors.firstName && <CustomText style={styles.errormsg}>{errors.firstName}</CustomText>}
+          <CustomTextInput
+            label="Last Name*"
+            value={lastName}
+            onChangeText={setLastName}
+            labelColor={DarkColor}
+          />
+          {errors.lastName && <CustomText style={styles.errormsg}>{errors.lastName}</CustomText>}
+          <CustomTextInput
+            label="Organisation Name*"
+            value={organisationName}
+            onChangeText={setOrganisationName}
+            labelColor={DarkColor}
+          />
+          {errors.organisationName && <CustomText style={styles.errormsg}>{errors.organisationName}</CustomText>}
+          <CustomTextInput
+            label="Your Role*"
+            value={role}
+            onChangeText={setRole}
+            labelColor={DarkColor}
+          />
+          {errors.role && <CustomText style={styles.errormsg}>{errors.role}</CustomText>}
+
+          <CustomTextInput
+            label="Reporting Manager"
+            value={reportingManager}
+            onChangeText={setReportingManager}
+            labelColor={DarkColor}
+          />
+          {errors.reportingManager && <CustomText style={styles.errormsg}>{errors.reportingManager}</CustomText>}
+          <TouchableOpacity
+            style={{
+              backgroundColor: mainOrangeColor,
+              width: '100%',
+              alignItems: 'center',
+              borderRadius: 8,
+              justifyContent: 'center',
+              height: 48,
+              marginTop: RfH(16),
+              marginBottom: RfH(8),
+            }}
+            onPress={handleProfileSetup}
+            disabled={loading}
+          >
+            <CustomText
+              style={{
+                color: mainWhiteColor,
+                fontFamily: fonts.PoppinsSemiBold,
+                fontSize: 16,
+              }}>
+              {loading ? 'Saving...' : 'Lets Go'}
+            </CustomText>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -976,11 +1011,12 @@ const ProfileSetupScreen = ({ navigation, dispatch }) => {
 
 // Member Profile Setup Screen (matches screenshot)
 
-const MemberProfileSetupScreen = ({ navigation, dispatch }) => {
-  const [email, setEmail] = useState('');
+const MemberProfileSetupScreen = ({ navigation, dispatch, email }) => {
+  const { connect } = useWebSocket();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [name, setName] = useState('');
-  const [dob, setDob] = useState('');
+  const [dob, setDob] = useState(''); // yyyy-mm-dd for backend
+  const [dobDisplay, setDobDisplay] = useState(''); // dd-mm-yyyy for UI
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [firstName, setFirstName] = useState('');
@@ -1020,7 +1056,7 @@ const MemberProfileSetupScreen = ({ navigation, dispatch }) => {
       // Split name into first_name and last_name for UI, but send as name in payload
       const payload = {
         name: name.trim(),
-        date_of_birth: dob.trim(),
+        date_of_birth: dob.trim(), // yyyy-mm-dd for backend
         organisation_name: organisationName.trim(),
         role: role.trim(),
       };
@@ -1045,9 +1081,14 @@ const MemberProfileSetupScreen = ({ navigation, dispatch }) => {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
+      // Prefer workspace.name, fallback to workspaces[0]?.name
+      const hubName = data?.data?.workspace?.name || data?.data?.workspaces?.[0]?.name || '';
+      console.log(hubName, "------------------");
+
+      await AsyncStorage1.setItem('HubName', String(hubName));
       console.log('Team Profile setup response:', data);
       if (!res.ok) {
-        Alert.alert('Error', data?.message || 'Profile setup failed.');
+        Alert.alert('Error Team Profile', data?.message || 'Profile setup failed.');
       } else {
         // Store workspace id in AsyncStorage1 if present
         if (data?.data?.workspace?.id) {
@@ -1065,140 +1106,176 @@ const MemberProfileSetupScreen = ({ navigation, dispatch }) => {
         dispatch(setAuthenticated(true));
         await AsyncStorage1.setItem('isLoggedIn', 'true');
         // Alert.alert('Success', 'Profile setup complete!');
+        connect();
         navigation.replace('Home');
       }
     } catch (e) {
-      Alert.alert('Error', e?.message || 'Profile setup failed.');
+      Alert.alert('Error Team Profilemklm', e?.message || 'Profile setup failed.');
     } finally {
       setLoading(false);
     }
   };
+
+  const handlePhoneChange = (text) => {
+    if (text && !/^[6-9]/.test(text)) {
+      setErrors(prev => ({
+        ...prev,
+        phoneNumber: 'Phone number must start from 6 to 9',
+      }));
+
+    } else {
+      setErrors(prev => ({
+        ...prev,
+        phoneNumber: '',
+      }));
+    }
+
+    // allow only numbers
+    const cleaned = text.replace(/[^0-9]/g, '');
+    setPhoneNumber(cleaned);
+  };
+
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: mainWhiteColor }}>
       <View style={[styles.riggBackImage2, { alignSelf: 'flex-end' }]}>
         <Image source={AuthBackImage} style={{ height: '100%', width: '100%', left: RfH(24) }} resizeMode="contain" />
       </View>
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: 'center',
-          paddingHorizontal: RfW(30),
-          paddingTop: RfH(80),
-          paddingBottom: RfH(20),
-        }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <CustomText style={{
-          fontSize: 24,
-          fontFamily: fonts.PoppinsSemiBold,
-          color: DarkColor,
-          marginBottom: RfH(10),
-          marginTop: RfH(10),
-        }}>
-          Join your Team
-        </CustomText>
-        <CustomTextInput
-          label="Phone Number(optional)"
-          placeholder="Enter phone number"
-          value={phoneNumber}
-          onChangeText={setPhoneNumber}
-          labelColor={DarkColor}
-          keyboardType="phone-pad"
-        />
-        {errors.phoneNumber && <CustomText style={{ color: 'red', marginBottom: 0, bottom: RfH(6) }}>{errors.phoneNumber}</CustomText>}
-        <CustomTextInput
-          label="Name"
-          placeholder="Enter name"
-          value={name}
-          onChangeText={setName}
-          labelColor={DarkColor}
-        />
-        {errors.name && <CustomText style={styles.errormsg}>{errors.name}</CustomText>}
-        <TouchableOpacity
-          onPress={() => setShowCalendar(true)}
-          activeOpacity={0.8}
-        >
-          <View pointerEvents="none">
-            <CustomTextInput
-              label="Date of Birth"
-              placeholder="YYYY-MM-DD"
-              value={dob}
-              onChangeText={setDob}
-              labelColor={DarkColor}
-              editable={false}
-            />
-          </View>
-        </TouchableOpacity>
-        {errors.dob && <CustomText style={styles.errormsg}>{errors.dob}</CustomText>}
-        {showCalendar && (
-          <DateTimePicker
-            value={calendarDate}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, selectedDate) => {
-              setShowCalendar(false);
-              if (selectedDate) {
-                setCalendarDate(selectedDate);
-                // Format as YYYY-MM-DD
-                const yyyy = selectedDate.getFullYear();
-                const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
-                const dd = String(selectedDate.getDate()).padStart(2, '0');
-                setDob(`${yyyy}-${mm}-${dd}`);
-              }
-            }}
-            maximumDate={new Date()}
-          />
-        )}
-        <CustomTextInput
-          label="Organisation Name"
-          placeholder="Khokhar Flour Mills"
-          value={organisationName}
-          onChangeText={setOrganisationName}
-          labelColor={DarkColor}
-        />
-        {errors.organisationName && <CustomText style={styles.errormsg}>{errors.organisationName}</CustomText>}
-        <CustomTextInput
-          label="Your Role"
-          placeholder="Enter name"
-          value={role}
-          onChangeText={setRole}
-          labelColor={DarkColor}
-        />
-        {errors.role && <CustomText style={styles.errormsg}>{errors.role}</CustomText>}
-        <CustomTextInput
-          label="Reporting Manager"
-          placeholder="Enter name"
-          value={reportingManager}
-          onChangeText={setReportingManager}
-          labelColor={DarkColor}
-        />
-        {errors.reportingManager && <CustomText style={styles.errormsg}>{errors.reportingManager}</CustomText>}
-        <TouchableOpacity
-          style={{
-            backgroundColor: mainOrangeColor,
-            width: '100%',
-            alignItems: 'center',
-            borderRadius: 8,
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+        style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={{
+            flexGrow: 1,
             justifyContent: 'center',
-            height: 48,
-            marginTop: RfH(16),
-            marginBottom: RfH(8),
+            paddingHorizontal: RfW(30),
+            paddingTop: RfH(80),
+            paddingBottom: RfH(20),
           }}
-          onPress={handleMemberProfileSetup}
-          disabled={loading}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <CustomText
-            style={{
-              color: mainWhiteColor,
-              fontFamily: fonts.PoppinsSemiBold,
-              fontSize: 16,
-            }}>
-            {loading ? 'Saving...' : 'Lets Go'}
+          <CustomText style={{
+            fontSize: 24,
+            fontFamily: fonts.PoppinsSemiBold,
+            color: DarkColor,
+            marginBottom: RfH(10),
+            marginTop: RfH(10),
+          }}>
+            Join your Team
           </CustomText>
-        </TouchableOpacity>
-      </ScrollView>
+          <CustomTextInput
+            label="Email ID"
+            value={email}
+            labelColor={DarkColor80}
+            editable={false}
+          />
+          <CustomTextInput
+            label="Phone Number(optional)"
+            placeholder="Enter phone number"
+            value={phoneNumber}
+            onChangeText={handlePhoneChange}
+            labelColor={DarkColor}
+            keyboardType="phone-pad"
+          />
+          {errors.phoneNumber && (
+            <CustomText style={styles.errormsg}>
+              {errors.phoneNumber}
+            </CustomText>
+          )}
+          <CustomTextInput
+            label="Name"
+            placeholder="Enter name"
+            value={name}
+            onChangeText={setName}
+            labelColor={DarkColor}
+          />
+          {errors.name && <CustomText style={styles.errormsg}>{errors.name}</CustomText>}
+          <TouchableOpacity
+            onPress={() => setShowCalendar(true)}
+            activeOpacity={0.8}
+          >
+            <View pointerEvents="none">
+              <CustomTextInput
+                label="Date of Birth"
+                placeholder="dd-mm-yyyy"
+                value={dobDisplay}
+                onChangeText={() => { }}
+                labelColor={DarkColor}
+                editable={false}
+              />
+            </View>
+          </TouchableOpacity>
+          {errors.dob && <CustomText style={styles.errormsg}>{errors.dob}</CustomText>}
+          {showCalendar && (
+            <DateTimePicker
+              value={calendarDate}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(event, selectedDate) => {
+                setShowCalendar(false);
+                if (selectedDate) {
+                  setCalendarDate(selectedDate);
+                  // Format as yyyy-mm-dd for backend
+                  const yyyy = selectedDate.getFullYear();
+                  const mm = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                  const dd = String(selectedDate.getDate()).padStart(2, '0');
+                  setDob(`${yyyy}-${mm}-${dd}`);
+                  setDobDisplay(`${dd}-${mm}-${yyyy}`);
+                }
+              }}
+              maximumDate={new Date()}
+            />
+          )}
+          <CustomTextInput
+            label="Organisation Name"
+            placeholder="Khokhar Flour Mills"
+            value={organisationName}
+            onChangeText={setOrganisationName}
+            labelColor={DarkColor}
+          />
+          {errors.organisationName && <CustomText style={styles.errormsg}>{errors.organisationName}</CustomText>}
+          <CustomTextInput
+            label="Your Role"
+            placeholder="Enter name"
+            value={role}
+            onChangeText={setRole}
+            labelColor={DarkColor}
+          />
+          {errors.role && <CustomText style={styles.errormsg}>{errors.role}</CustomText>}
+          <CustomTextInput
+            label="Reporting Manager"
+            placeholder="Enter name"
+            value={reportingManager}
+            onChangeText={setReportingManager}
+            labelColor={DarkColor}
+          />
+          {errors.reportingManager && <CustomText style={styles.errormsg}>{errors.reportingManager}</CustomText>}
+          <TouchableOpacity
+            style={{
+              backgroundColor: mainOrangeColor,
+              width: '100%',
+              alignItems: 'center',
+              borderRadius: 8,
+              justifyContent: 'center',
+              height: 48,
+              marginTop: RfH(16),
+              marginBottom: RfH(8),
+            }}
+            onPress={handleMemberProfileSetup}
+            disabled={loading}
+          >
+            <CustomText
+              style={{
+                color: mainWhiteColor,
+                fontFamily: fonts.PoppinsSemiBold,
+                fontSize: 16,
+              }}>
+              {loading ? 'Saving...' : 'Lets Go'}
+            </CustomText>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -1328,7 +1405,7 @@ const HubListingScreen = ({
         }}
         onPress={async () => {
           await AsyncStorage1.setItem('HubId', JSON.stringify(item.id));
-          await AsyncStorage1.setItem('HubName', JSON.stringify(item.name));
+          // await AsyncStorage1.setItem('HubName', JSON.stringify(item.name));
 
           dispatch(setAuthenticated(true));
 
@@ -1408,46 +1485,46 @@ const HubListingScreen = ({
               </Subtitle>
             </>
           }
-          ListFooterComponent={
-            <View style={{ marginVertical: 10 }}>
-              <CustomText
-                style={{
-                  color: DarkColor,
-                  fontSize: 12,
-                  fontFamily: fonts.PoppinsMedium,
-                }}>
-                Not the hub you're looking for?
-              </CustomText>
+          // ListFooterComponent={
+          //   <View style={{ marginVertical: 10 }}>
+          //     <CustomText
+          //       style={{
+          //         color: DarkColor,
+          //         fontSize: 12,
+          //         fontFamily: fonts.PoppinsMedium,
+          //       }}>
+          //       Not the hub you're looking for?
+          //     </CustomText>
 
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginTop: 10,
-                }}
-                onPress={() => {
-                  setCurrentScreen('JoinCreateHubScreen');
-                }}>
-                <Image
-                  source={CreateHubImage}
-                  style={{
-                    height: 35,
-                    width: 35,
-                    resizeMode: 'contain',
-                    marginRight: 10,
-                  }}
-                />
-                <CustomText
-                  style={{
-                    color: DarkColor,
-                    fontSize: 14,
-                    fontFamily: fonts.PoppinsMedium,
-                  }}>
-                  Create Hub
-                </CustomText>
-              </TouchableOpacity>
-            </View>
-          }
+          //     <TouchableOpacity
+          //       style={{
+          //         flexDirection: 'row',
+          //         alignItems: 'center',
+          //         marginTop: 10,
+          //       }}
+          //       onPress={() => {
+          //         setCurrentScreen('JoinCreateHubScreen');
+          //       }}>
+          //       <Image
+          //         source={CreateHubImage}
+          //         style={{
+          //           height: 35,
+          //           width: 35,
+          //           resizeMode: 'contain',
+          //           marginRight: 10,
+          //         }}
+          //       />
+          //       <CustomText
+          //         style={{
+          //           color: DarkColor,
+          //           fontSize: 14,
+          //           fontFamily: fonts.PoppinsMedium,
+          //         }}>
+          //         Create Hub
+          //       </CustomText>
+          //     </TouchableOpacity>
+          //   </View>
+          // }
           showsVerticalScrollIndicator={false}
         />
       </View>
@@ -1540,23 +1617,14 @@ const NewLogin = ({ navigation }) => {
   };
 
   const handleEmailLogin = () => {
-    if (!isChecked) {
-      toastRef.current.show({
-        type: 'error',
-        message: 'Please accept the terms and conditions',
-      });
-      return;
-    }
-    // Always trim and lowercase the email before proceeding
     const trimmedEmail = email.trim().toLowerCase();
-    setEmail(trimmedEmail); // Update state for UI
+    setEmail(trimmedEmail);
     try {
       setCurrentScreen('signup');
     } catch (err) {
       console.log('error in handleEmailLogin =====> ', err);
     }
   };
-
   const toggleOtpModal = () => {
     setOtpModalVisible(!isOtpModalVisible);
     setOtpCode('');
@@ -1741,8 +1809,8 @@ const NewLogin = ({ navigation }) => {
           <LoginOptionsScreen
             onSelectEmail={handleEmailLogin}
             toastRef={toastRef}
-            isChecked={isChecked}
-            setIsChecked={setIsChecked}
+            // isChecked={isChecked}
+            // setIsChecked={setIsChecked}
             setHubData={setHubData}
             setCurrentScreen={setCurrentScreen}
             navigation={navigation}
@@ -1773,9 +1841,9 @@ const NewLogin = ({ navigation }) => {
           />
         );
       case 'ProfileSetupScreen':
-        return <ProfileSetupScreen navigation={navigation} dispatch={dispatch} />;
+        return <ProfileSetupScreen navigation={navigation} dispatch={dispatch} email={email} />;
       case 'MemberProfileSetupScreen':
-        return <MemberProfileSetupScreen navigation={navigation} dispatch={dispatch} />;
+        return <MemberProfileSetupScreen navigation={navigation} dispatch={dispatch} email={email} />;
       case 'JoinCreateHubScreen':
         return (
           <JoinOrCreateHubScreen
@@ -1884,7 +1952,7 @@ export default NewLogin;
 const styles = StyleSheet.create({
   getStartedButton: {
     backgroundColor: mainOrangeColor,
-    marginTop: 50,
+    marginTop: 30,
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',

@@ -17,6 +17,7 @@ import {
   mainOrange20,
   DarkColor50,
   mainWhiteColor,
+  mainOrangeColor,
 } from '../../../utils/style/fonts';
 import AsyncStorage1 from '../../../Api/config/AsyncStorage';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -55,9 +56,7 @@ const HeaderComponents = ({ navigation, DataListTask, Refresh, setRefresh }) => 
   const FetchData = async () => {
     try {
       const userData = await AsyncStorage1.getItem('userLoginResponse');
-      console.log('User Data --=--===>jhjh', userData);
       setUserData(userData);
-
       const userId = userData?.data?.user?.id; // Fallback to data.id if data.user.id is not available
       const response = await GetUserIdListingApi(userId, {});
       // console.log('GetUserIdListingApi --=--===>', response);
@@ -66,15 +65,11 @@ const HeaderComponents = ({ navigation, DataListTask, Refresh, setRefresh }) => 
       }
 
       // console.log('user data --=--====>', userData);
-
       const hubname = await AsyncStorage1.getItem('HubName');
       // console.log('HubName --=--===>', hubname);
       setHubName(hubname);
-
       const first_name = await AsyncStorage1.getItem('first_name');
-
       const last_name = await AsyncStorage1.getItem('last_name');
-
       setname(first_name + ' ' + last_name);
     } catch (error) {
       console.log('User Details Error ==-=-==---> Main Home Page', error);
@@ -239,18 +234,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   profileImageWrapper: {
-    width: RfW(56),
-    height: RfH(56),
-    borderRadius: RfH(28),
-    borderWidth: 1,
-    borderColor: DarkColor50,
+    // width: RfW(56),
+    // height: RfH(56),
+    // borderRadius: RfH(28),
+    // borderWidth: 1,
+    // borderColor: DarkColor50,
+    // justifyContent: 'center',
+    // alignItems: 'center',
     justifyContent: 'center',
     alignItems: 'center',
+    // backgroundColor: '#FC8C4D',
+    height: RfH(50),
+    width: RfH(50),
+    borderRadius: RfH(25),
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: mainOrangeColor,
   },
   profileImage: {
-    width: RfW(56),
-    height: RfH(56),
-    borderRadius: 28,
+    width: RfW(50),
+    height: RfH(50),
+    borderRadius: RfH(25),
+    borderWidth: 1,
+    borderColor: mainOrangeColor,
+
   },
   workspaceName: {
     marginTop: RfH(2),

@@ -165,7 +165,7 @@ const CatchComponents = ({ DataListTask, Refresh, setRefresh }) => {
             Catch-ups today({DataList.length})
           </CustomText>
         </View>
-        {DataListTask.length > 0 && (
+        {DataListTask?.length > 0 && (
           <CustomText allowFontScaling={false} style={styles.headerSubtitle}>
             {DataListTask[0]?.completion_rate} tasks done
           </CustomText>

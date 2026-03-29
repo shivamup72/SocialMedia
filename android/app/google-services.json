@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "194044245626",
-    "project_id": "rigglex-9aa94",
-    "storage_bucket": "rigglex-9aa94.firebasestorage.app"
+    "project_number": "201534543333",
+    "project_id": "rigglex-4e7c2",
+    "storage_bucket": "rigglex-4e7c2.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:194044245626:android:b0c0fe5579f53930daadc3",
+        "mobilesdk_app_id": "1:201534543333:android:fbb85829e2d1144ae10b0c",
         "android_client_info": {
-          "package_name": "com.rigglex"
+          "package_name": "com.riggle.rigglex"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAiZZD_XszSiDU0NkZHbxrJtol4mDsXO2w"
+          "current_key": "AIzaSyD2F1lkcxVjX57SRmqNrcBiRNj8TnJPrkk"
         }
       ],
       "services": {

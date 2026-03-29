@@ -359,7 +359,6 @@ const ContactScreen = () => {
 
   const renderContactItem = ({ item }) => {
     // console.log('Rendering contact itemmnjnjn:', item);
-
     return (
       <TouchableOpacity
         style={styles.contactRow}

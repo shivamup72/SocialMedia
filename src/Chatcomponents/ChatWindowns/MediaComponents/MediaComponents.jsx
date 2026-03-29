@@ -1,3 +1,4 @@
+import Sound from 'react-native-sound';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
@@ -47,8 +48,9 @@ import LottieView from 'lottie-react-native';
 import { useWebSocket } from '../../../Api/context/WebSocketServices';
 import { RfH, RfW } from '../../../utils/helper';
 import LottieEmojiPicker from '../LottieEmoji/LottieEmojiPicker';
+import EmojiSelector, { Categories } from 'react-native-emoji-selector';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import CustomText from '../../../utils/CustomText';
 
 const ChatInputBar = ({
@@ -62,16 +64,13 @@ const ChatInputBar = ({
   setEditmessagestatus,
   editmessagestatus,
   onEditMessage,
-  groupMembers = [], // Array of {id, name, profile_picture} for group members
+  groupMembers = [],
+  onMediaSent,
 }) => {
   const [GroupMembers, setGroupMember] = useState([]);
   const textInputRef = useRef(null);
-  // console.log(
-  //   'selectedMessage MediaComponents -=----->',
-  //   JSON.stringify(selectedMessage),
-  //   editmessagestatus,
-  // );
-  // console.log(onSend, "Hello jnjnjnjjnjn");
+  const route = useRoute()
+  const conversationId = route?.params?.conversationId;
 
   const [message, setMessage] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -102,20 +101,23 @@ const ChatInputBar = ({
     setSelectedLottie(null);
   }, [editmessagestatus, selectedMessage]);
 
-  // Lottie animation mapping for emoji keys
-  const lottieMap = {
-    smile: require('../../../assets/LottieEmoji/emoji1.json'),
-    thumbsup: require('../../../assets/LottieEmoji/emoj2.json'),
-    heart: require('../../../assets/LottieEmoji/emoji3.json'),
-    // Add more if you add more to LOTTIE_EMOJIS
+  // No manual emoji-to-Lottie mapping needed. EmojiSelector will handle emoji input.
+
+  const splitEmojis = (str) => {
+    if (!str) return [];
+    const emojiRegex = /\p{Extended_Pictographic}/gu;
+    return str.match(emojiRegex) || [];
   };
 
-  // Use the same emojiCharMap as LOTTIE_EMOJIS in LottieEmojiPicker
-  const emojiCharMap = {
-    smile: require('../../../assets/LottieEmoji/emoji1.json'),
-    thumbsup: require('../../../assets/LottieEmoji/emoji1.json'),
-    heart: require('../../../assets/LottieEmoji/emoji1.json'),
-    // Add more if you add more to LOTTIE_EMOJIS
+  const getLottieUrlForEmoji = (emoji) => {
+    if (!emoji) return null;
+    const codePoints = [];
+    for (const symbol of [...emoji]) {
+      const code = symbol.codePointAt(0).toString(16);
+      codePoints.push(code);
+    }
+    const unicodeStr = codePoints.join('-');
+    return `https://fonts.gstatic.com/s/e/notoemoji/latest/${unicodeStr}/lottie.json`;
   };
 
   const handleSendText = () => {
@@ -124,7 +126,7 @@ const ChatInputBar = ({
     if (selectedLottie) {
       // Send the emoji key (not the lottie path) in the payload
       if (selectedLottie.key) {
-        onSend({ content: '', lottie_emoji: selectedLottie.key });
+        onSend({ content: '', lottie_emoji: getLottieUrlForEmoji(selectedLottie.key) });
       }
       setSelectedLottie(null);
       setMessage('');
@@ -133,17 +135,15 @@ const ChatInputBar = ({
     }
     if (typeof message === 'string' && message.trim().length > 0) {
       if (editmessagestatus && selectedMessage) {
-        onEditMessage({
-          messageId: selectedMessage.id,
-          newContent: message.trim(),
-        });
+        // Call onEditMessage with the new content
+        onEditMessage({ messageId: selectedMessage.id, newContent: message.trim() });
         setEditmessagestatus(false);
         setSelectedMessage(null);
-        setSending(false);
       } else {
+        // Send as a new message
         onSend({ content: message.trim() });
-        setSending(false);
       }
+      setSending(false);
       setMessage('');
     } else {
       setSending(false);
@@ -153,14 +153,7 @@ const ChatInputBar = ({
   const [showLottieEmojiPicker, setShowLottieEmojiPicker] = useState(false);
 
   const handleSendPreview = (fileWithCaption) => {
-    // if (previewModal.type === 'image' || previewModal.type === 'video') {
-    //   onSend({ type: previewModal.type, uri: previewModal.file.uri, caption: fileWithCaption.caption });
-    //   console.log("sending preview", onSend);
-    // } else if (previewModal.type === 'document' || previewModal.type === 'audio') {
-    //   onSend({ type: previewModal.type, uri: previewModal.file.uri, name: previewModal.file.name, caption: fileWithCaption.caption });
-    //   console.log("sending doc preview", onSend);
-    // }
-    console.log("sending preview", onSend, fileWithCaption);
+    console.log("sending preview bjbjbjbjbjbjbbjjbbjbjb", onSend, fileWithCaption);
     setPreviewModal({ visible: false, type: null, file: null });
   };
   // Open the Lottie emoji picker as a bottom sheet
@@ -171,21 +164,46 @@ const ChatInputBar = ({
     setShowLottieEmojiPicker(true);
   };
 
-  // Handle Lottie emoji selection: send immediately, no preview
+  // Render EmojiSelector inside the LottieEmojiPicker modal
+  const renderLottieEmojiPicker = () => (
+    <LottieEmojiPicker
+      visible={showLottieEmojiPicker}
+      onSelect={handleLottieEmojiSelect}
+      onClose={() => setShowLottieEmojiPicker(false)}
+      bottomSheet
+    >
+      <EmojiSelector
+        category={Categories.all}
+        showSearchBar={false}
+        showTabs={true}
+        showHistory={true}
+        KeyboardAvoidingViewBehavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        columns={8}
+        onEmojiSelected={emoji => {
+          // You can map emoji to lottie if needed, or just pass emoji
+          handleLottieEmojiSelect({ key: emoji });
+        }}
+        tabStyle={{ height: 160, fontSize: 30 }}
+        tabIconStyle={{ fontSize: 60 }}
+        style={{ height: 300 }}
+      />
+    </LottieEmojiPicker>
+  );
+
+  // Handle emoji selection: send as text in payload
   const handleLottieEmojiSelect = (emojiObj) => {
     setShowLottieEmojiPicker(false);
     if (emojiObj?.key) {
-      // Build the same payload as normal text, including group/private info
+      // Send emoji as text content
       const payload = {
-        content: '',
-        lottie_emoji: emojiObj.key,
+        content: emojiObj.key,
       };
-      // Add group/private chat info if available
       if (isGroup && GroupId) {
         payload.group_id = GroupId;
         payload.is_group = true;
       }
       onSend(payload);
+      // playSendSound();
     }
     setSelectedLottie(null);
     setMessage('');
@@ -385,14 +403,14 @@ const ChatInputBar = ({
 
 
           <View style={[styles.inputContainer, { flexDirection: 'row', alignItems: 'center', width: '100%' }]}>
-            {!editmessagestatus && (
+            {/* {!editmessagestatus && (
               <TouchableOpacity onPress={handleEmojipicker} style={styles.iconButton}>
                 <Image
                   source={EmojiImage}
                   style={{ width: 26, height: 26, tintColor: iconColor }}
                 />
               </TouchableOpacity>
-            )}
+            )} */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', flex: 1 }}>
               {selectedLottie ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
@@ -476,13 +494,8 @@ const ChatInputBar = ({
           </View>
         </KeyboardAvoidingView>
       </View>
-      {/* Lottie Emoji Picker as bottom sheet */}
-      <LottieEmojiPicker
-        visible={showLottieEmojiPicker}
-        onSelect={handleLottieEmojiSelect}
-        onClose={() => setShowLottieEmojiPicker(false)}
-        bottomSheet // Pass a prop to render as bottom sheet
-      />
+      {/* Lottie Emoji Picker as bottom sheet with EmojiSelector */}
+      {renderLottieEmojiPicker()}
       {/* WhatsApp-style Preview Modal */}
       <PreviewModal
         visible={previewModal.visible}
@@ -490,6 +503,10 @@ const ChatInputBar = ({
         type={previewModal.type}
         onSend={handleSendPreview}
         onCancel={handleCancelPreview}
+        conversation_id={conversationId}
+        recipient_id={GroupId}
+        is_group={isGroup}
+        onMediaSent={onMediaSent}
       />
       {/* Camera Preview Modal */}
       <CameraPreviewModal
@@ -838,6 +855,7 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     fontSize: 16,
     color: '#000',
+    left: 1
   },
   sendButton: {
     backgroundColor: mainOrangeColor,

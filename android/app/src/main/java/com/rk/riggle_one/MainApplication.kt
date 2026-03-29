@@ -10,9 +10,9 @@ import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.soloader.SoLoader
-import com.rigglex.BuildConfig
+import com.riggle.rigglex.BuildConfig
 
-//import com.riggleX.BuildConfig
+//import com.riggle.rigglex.BuildConfig
 //import com.rk.riggle_x.BuildConfig
 
 class MainApplication : Application(), ReactApplication {

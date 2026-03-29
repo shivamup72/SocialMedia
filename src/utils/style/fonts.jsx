@@ -1,12 +1,12 @@
 export const fonts = {
-  PoppinsBlack: 'Poppins-Black',
+  // PoppinsBlack: 'Poppins-Black',
   PoppinsBold: 'Poppins-Bold',
   PoppinsSemiBold: 'Poppins-SemiBold',
   PoppinsMedium: 'Poppins-Medium',
   PoppinsRegular: 'Poppins-Regular',
   PoppinsLight: 'Poppins-Light',
   PoppinsThin: 'Poppins-Thin',
-  PoppinsExtraLight: 'Poppins-ExtraLight',
+  // PoppinsExtraLight: 'Poppins-ExtraLight',
   italic: 'italic',
 };
 
@@ -30,5 +30,6 @@ export const DarkColor90 = "rgba(38, 50, 56, 0.9)";
 export const whiteColor30 = '#FFFFFF4D';
 export const mainWhiteColor = '#FFFFFF';
 export const dullBlack = '#404040';
+export const lightGray = 'rgba(64, 64, 64, 0.78)';
 
 export const RedColor = '#F31D1D';

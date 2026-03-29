@@ -14,8 +14,7 @@ import {
   Platform,
   TouchableWithoutFeedback,
 } from 'react-native';
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import BackArrowSvg from '../../../assets/svg/BackArrowSvg';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'; import BackArrowSvg from '../../../assets/svg/BackArrowSvg';
 import ThreeVerticalDots from '../../../assets/svg/threeDots';
 import ShareIcon from '../../../assets/svg/solar_forward_bold';
 import ChatReactionIcon from '../../../assets/svg/fluent_emoji_Svg';
@@ -29,6 +28,7 @@ import {
   DarkColor60,
   DarkColor80,
   fonts,
+  mainOrange50,
   mainOrangeColor,
   mainWhiteColor,
 } from '../../../utils/style/fonts';
@@ -39,20 +39,55 @@ import ReactionDetailsModal from '../ChatTypeComponents/ReactionComponents/React
 import { useIsFocused } from '@react-navigation/native';
 import EmojiSelector, { Categories } from 'react-native-emoji-selector';
 import CustomText from '../../../utils/CustomText';
+import LottieView from 'lottie-react-native';
+
 import { RfH, RfW } from '../../../utils/helper';
+// Emoji unicode mapping for reference:
+// 😂: 1f602
+// 😮: 1f62e
+// 😢: 1f622
+// 🙏: 1f64f
+// 👍: 1f44d
+// 👎: 1f44e
+// 🔥: 1f525
 const EMOJIS = [
-  '😊',
-  '👍',
-  '❤️',
-  '😂',
-  '😮',
-  '😢',
-  '🎉',
-  '🤓',
-  '😡',
-  '🤔',
-  '😕',
+  '😂', // 1f602
+  '😮', // 1f62e
+  '😢', // 1f622
+  '🙏', // 1f64f
+  '👍', // 1f44d
+  '👎', // 1f44e
+  '🔥', // 1f525
 ];
+
+// Helper: get Lottie URL for emoji unicode
+function getLottieForEmoji(emoji) {
+  if (!emoji) return null;
+  const codePoints = [];
+  for (const symbol of [...emoji]) {
+    const code = symbol.codePointAt(0).toString(16);
+    codePoints.push(code);
+  }
+  const unicodeStr = codePoints.join('-');
+  return { uri: `https://fonts.gstatic.com/s/e/notoemoji/latest/${unicodeStr}/lottie.json` };
+}
+
+// Track failed Lottie emoji loads
+function useFailedLottieEmojis() {
+  const [failed, setFailed] = useState({});
+  const markFailed = emoji => setFailed(prev => ({ ...prev, [emoji]: true }));
+  return [failed, markFailed];
+}
+
+function isSingleEmoji(str) {
+  if (!str) return false;
+  const text = String(str).trim();
+  const cleaned = text.replace(/[\uFE0F\u200D]/g, '');
+  const emojiRegex = /\p{Extended_Pictographic}/u;
+  const chars = [...cleaned];
+  const onlyEmoji = chars.every(ch => emojiRegex.test(ch));
+  return onlyEmoji && chars.length === 1;
+}
 const ThreadScreen = ({ navigation, route }) => {
   const [emojis, setEmojis] = useState(EMOJIS);
   useEffect(() => {
@@ -78,6 +113,13 @@ const ThreadScreen = ({ navigation, route }) => {
   const [showEmojiSelector, setShowEmojiSelector] = useState(false);
   const IsFocused = useIsFocused();
 
+  // Notify parent of reply count change
+  useEffect(() => {
+    if (route?.params?.onThreadReplyCountChange && typeof route.params.onThreadReplyCountChange === 'function') {
+      route.params.onThreadReplyCountChange(DataList.length);
+    }
+  }, [DataList.length]);
+
   useEffect(() => {
     const fetData = async () => {
       try {
@@ -93,9 +135,44 @@ const ThreadScreen = ({ navigation, route }) => {
   const PAGE_SIZE = 30;
   const flatListRef = useRef(null);
 
+  const getEmojiSize = (count) => {
+    if (count === 1) return 60;
+    if (count <= 3) return 40;
+    return 24;
+  };
+
   const handlePlusPress = () => {
     setShowEmojiSelector(true);
   };
+  // Helper to get Lottie URL for emoji
+  function getLottieUrlForEmoji(emoji) {
+    if (!emoji) return null;
+    const codePoints = [];
+    for (const symbol of [...emoji]) {
+      const code = symbol.codePointAt(0).toString(16);
+      codePoints.push(code);
+    }
+    const unicodeStr = codePoints.join('-');
+    return `https://fonts.gstatic.com/s/e/notoemoji/latest/${unicodeStr}/lottie.json`;
+  }
+
+  // Helper: check if string is only emojis (1 or more)
+  function isOnlyEmojis(str) {
+    if (!str) return false;
+    const text = String(str).trim();
+    const cleaned = text.replace(/\s|[\uFE0F\u200D]/g, '');
+    const emojiRegex = /\p{Extended_Pictographic}/gu;
+    const matches = cleaned.match(emojiRegex);
+    return matches && matches.length > 0 && matches.join('') === cleaned;
+  }
+
+  // Helper: split string into array of emojis
+  function splitEmojis(str) {
+    if (!str) return [];
+    const emojiRegex = /\p{Extended_Pictographic}/gu;
+    return str.match(emojiRegex) || [];
+  }
+
   const handleEmojiSelected = (emoji) => {
     if (!emojis.includes(emoji)) {
       setEmojis(prev => {
@@ -104,8 +181,12 @@ const ThreadScreen = ({ navigation, route }) => {
       });
     }
     setShowEmojiSelector(false);
-    // Use the same logic as quick emoji row: send and show emoji for the selected message
-    if (emojiPickerState && emojiPickerState.message) {
+    // If not a reaction, send as lottie_emoji url
+    if (!emojiPickerState.message) {
+      // Send as lottie_emoji url in content
+      handleSend({ content: '', lottie_emoji: getLottieUrlForEmoji(emoji) });
+    } else {
+      // Use the same logic as quick emoji row: send and show emoji for the selected message
       handleSelectEmoji(emoji);
     }
   };
@@ -281,18 +362,30 @@ const ThreadScreen = ({ navigation, route }) => {
         return;
       }
 
-      const payload = {
+      let payload = {
         action: 'reply_to_thread',
         message_id: route?.params?.Data?.id,
         is_group: route?.params?.isGroup,
-        text: data.content,
       };
+
+      // If sending from EmojiSelector (data.lottie_emoji), keep as before
+      if (data.lottie_emoji) {
+        // If sending from EmojiSelector, try to get the emoji character if possible (if you have a mapping)
+        // For now, do not send lottie_emoji in payload, just send the emoji character if available
+        payload.text = data.emoji || '';
+      } else if (isOnlyEmojis(data.content)) {
+        // If user typed only emojis from keyboard, send as emoji string
+        const emojisArr = splitEmojis(data.content);
+        payload.text = emojisArr.join('');
+      } else {
+        payload.text = data.content;
+      }
 
       console.log('payload sending -=-=-=-=----->', payload);
       sendMessage(payload);
       loadMessages(page);
     },
-    [isConnected, sendMessage, route?.params?.isGroup, route?.params?.Data?.id],
+    [isConnected, sendMessage, route?.params?.isGroup, route?.params?.Data?.id, loadMessages, page],
   );
 
   const [emojiPickerState, setEmojiPickerState] = useState({
@@ -483,7 +576,16 @@ const ThreadScreen = ({ navigation, route }) => {
                   onPress={() => onSelectEmoji(emoji)}
                   style={styles.emojiButton}
                 >
-                  <CustomText style={styles.emoji}>{emoji}</CustomText>
+                  {getLottieForEmoji(emoji) ? (
+                    <LottieView
+                      source={getLottieForEmoji(emoji)}
+                      autoPlay
+                      loop
+                      style={{ width: 32, height: 32 }}
+                    />
+                  ) : (
+                    <CustomText style={styles.emoji}>{emoji}</CustomText>
+                  )}
                 </TouchableOpacity>
               ))}
               <TouchableOpacity
@@ -526,9 +628,9 @@ const ThreadScreen = ({ navigation, route }) => {
             avatarUri={item?.sender?.avatar}
             name={item?.senderName || item?.sender?.email}
             email={item?.sender?.email}
-            size={41}
-            borderRadius={30}
-            fontSize={20}
+            size={30}
+            borderRadius={15}
+            fontSize={14}
           />
         </View>
       )}
@@ -539,8 +641,79 @@ const ThreadScreen = ({ navigation, route }) => {
             <CustomText style={styles.senderName}>{item?.senderName}</CustomText>
           )}
 
-        <View style={styles.messageBubble}>
-          <CustomText style={[styles.messageText, { top: RfH(2) }]}>{item?.content}</CustomText>
+        <View
+          style={[
+            styles.messageBubble,
+            ((item.lottie_emoji || (isSingleEmoji(String(item?.content)) && getLottieUrlForEmoji(String(item?.content)))) && {
+              backgroundColor: mainWhiteColor,
+              shadowOpacity: 0,
+              shadowRadius: 0,
+              elevation: 0,
+            }),
+          ]}
+        >
+          {/* Show Lottie for all emoji-only messages, with dynamic sizing */}
+          {item.lottie_emoji ? (
+            <LottieView
+              source={{ uri: item.lottie_emoji }}
+              autoPlay
+              loop
+              style={{ width: 60, height: 60, alignSelf: 'center' }}
+            />
+          ) : Array.isArray(item.lottie_emojis) && item.lottie_emojis.length > 0 ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+              {item.lottie_emojis.map((url, idx) => (
+                <LottieView
+                  key={idx}
+                  source={{ uri: url }}
+                  autoPlay
+                  loop
+                  style={{ width: item.lottie_emojis.length === 1 ? 60 : 20, height: item.lottie_emojis.length === 1 ? 60 : 20, marginHorizontal: 2 }}
+                />
+              ))}
+            </View>
+          ) : isOnlyEmojis(String(item?.content)) && splitEmojis(String(item?.content)).length > 0 ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', }}>
+              {splitEmojis(String(item?.content)).map((emoji, idx, arr) => (
+                <LottieView
+                  key={idx}
+                  source={{ uri: getLottieUrlForEmoji(emoji) }}
+                  autoPlay
+                  loop
+                  style={{ width: arr.length === 1 ? 60 : 20, height: arr.length === 1 ? 60 : 20, marginHorizontal: 2 }}
+                />
+              ))}
+            </View>
+          ) : (
+            // Mixed text and emoji: render text and emojis in order, emojis as Lottie
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', maxWidth: '90%' }}>
+              {(() => {
+                const emojiRegex = /\p{Extended_Pictographic}/gu;
+                const parts = String(item.content).split(emojiRegex);
+                const emojis = String(item.content).match(emojiRegex) || [];
+                const nodes = [];
+                for (let i = 0; i < parts.length; i++) {
+                  if (parts[i]) {
+                    nodes.push(
+                      <CustomText key={`text-${i}`} style={[styles.messageText]}>{parts[i]}</CustomText>
+                    );
+                  }
+                  if (emojis[i]) {
+                    nodes.push(
+                      <LottieView
+                        key={`emoji-${i}`}
+                        source={{ uri: getLottieUrlForEmoji(emojis[i]) }}
+                        autoPlay
+                        loop
+                        style={{ width: 28, height: 28, margin: 2 }}
+                      />
+                    );
+                  }
+                }
+                return nodes;
+              })()}
+            </View>
+          )}
           <CustomText style={[styles.timestamp, { alignSelf: 'flex-end' }]}>{item?.timestamp}</CustomText>
         </View>
         {/* <View style={styles.metaContainer}>
@@ -578,9 +751,10 @@ const ThreadScreen = ({ navigation, route }) => {
 
   const ReplyMessage = ({ item }) => (
     <>
+      {console.log(item, "here all reply msg")}
       {String(item?.sender?.id) !== String(User) ? (
         <TouchableOpacity
-          onLongPress={e => {
+          onLongPress={(e) => {
             setSelectedMessageId(item.id);
             handleEmojiPress(e, item);
           }}
@@ -590,78 +764,231 @@ const ThreadScreen = ({ navigation, route }) => {
           activeOpacity={1}
           style={[
             styles.messageContainer,
-            {
-              marginRight: 20,
-            },
+            { marginRight: 20 },
             selectedMessageId === item.id && { backgroundColor: '#FC8C4D26' },
-          ]}>
+          ]}
+        >
           {route?.params?.isGroup && (
-            <View style={styles.avatarContainer}>
+            <View style={[styles.avatarContainer, {
+              width: 20,
+              height: 20,
+              borderRadius: 10,
+            }]}>
               <Avatar
                 avatarUri={item?.sender?.avatar}
                 name={item?.sender?.name || item?.sender?.email}
                 email={item?.sender?.email}
-                size={41}
-                borderRadius={30}
-                fontSize={20}
+                size={20}
+                borderRadius={10}
+                fontSize={14}
               />
             </View>
           )}
+
           <View style={styles.ReceiverMessageContent}>
-            {String(item?.sender?.id) !== String(User) &&
-              route?.params?.isGroup && (
-                <CustomText style={styles.senderName}>
-                  {item?.sender?.name || item?.sender?.email}
-                </CustomText>
+            <View
+              style={[
+                styles.ReceiverMessageBubble,
+                isOnlyEmojis(String(item?.content)) &&
+                splitEmojis(String(item?.content)).length === 1 && {
+                  backgroundColor: 'transparent',
+                  shadowOpacity: 0,
+                  shadowRadius: 0,
+                  elevation: 0,
+
+                },
+                route?.params?.isGroup && { left: -8 },
+              ]}
+            >
+              {String(item?.sender?.id) !== String(User) &&
+                route?.params?.isGroup && (
+                  <CustomText style={styles.msgsenderName}>
+                    {item?.sender?.name || item?.sender?.email}
+                  </CustomText>
+                )}
+
+              {/* Single Lottie Emoji */}
+              {item.lottie_emoji ? (
+                <LottieView
+                  source={{ uri: item.lottie_emoji }}
+                  autoPlay
+                  loop
+                  style={{ width: 40, height: 40, alignSelf: 'center' }}
+                />
+              ) : Array.isArray(item.lottie_emojis) && item.lottie_emojis.length > 0 ? (
+
+                /* Multiple Lottie Emoji */
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    maxWidth: '90%',
+                  }}
+                >
+                  {item.lottie_emojis.map((url, idx, arr) => (
+                    <LottieView
+                      key={idx}
+                      source={{ uri: url }}
+                      autoPlay
+                      loop
+                      style={{
+                        width: getEmojiSize(arr.length),
+                        height: getEmojiSize(arr.length),
+                        margin: 2,
+                      }}
+                    />
+                  ))}
+                </View>
+
+              ) : isOnlyEmojis(String(item?.content)) &&
+                splitEmojis(String(item?.content)).length > 0 ? (
+
+                /* Normal Emoji */
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    maxWidth: '90%',
+                  }}
+                >
+                  {splitEmojis(String(item?.content)).map((emoji, idx, arr) => (
+                    <LottieView
+                      key={idx}
+                      source={{ uri: getLottieUrlForEmoji(emoji) }}
+                      autoPlay
+                      loop
+                      style={{
+                        width: getEmojiSize(arr.length),
+                        height: getEmojiSize(arr.length),
+                        margin: 2,
+                      }}
+                    />
+                  ))}
+                </View>
+
+
+              ) : (
+                // Mixed text and emoji: render text and emojis in order, emojis as Lottie
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', maxWidth: '90%' }}>
+                  {(() => {
+                    const emojiRegex = /\p{Extended_Pictographic}/gu;
+                    const parts = String(item.content).split(emojiRegex);
+                    const emojis = String(item.content).match(emojiRegex) || [];
+                    const nodes = [];
+                    for (let i = 0; i < parts.length; i++) {
+                      if (parts[i]) {
+                        nodes.push(
+                          <CustomText key={`text-${i}`} style={styles.messageText}>{parts[i]}</CustomText>
+                        );
+                      }
+                      if (emojis[i]) {
+                        nodes.push(
+                          <LottieView
+                            key={`emoji-${i}`}
+                            source={{ uri: getLottieUrlForEmoji(emojis[i]) }}
+                            autoPlay
+                            loop
+                            style={{ width: 20, height: 20, margin: 2 }}
+                          />
+                        );
+                      }
+                    }
+                    return nodes;
+                  })()}
+                </View>
               )}
-            <View style={styles.ReceiverMessageBubble}>
-              <CustomText style={styles.messageText}>{item.content}</CustomText>
-              <CustomText style={[styles.timestamp, { alignSelf: 'flex-end' }]}>
+
+              {/* Timestamp */}
+              <CustomText
+                style={[
+                  styles.timestamp,
+                  { alignSelf: 'flex-end' },
+                  isOnlyEmojis(String(item?.content)) &&
+                  splitEmojis(String(item?.content)).length === 1 && {
+                    color: DarkColor80,
+                  },
+                ]}
+              >
                 {formatTime(item?.created_at)}
               </CustomText>
+
             </View>
+
+
+            {/* Reactions */}
             <View style={styles.metaContainer}>
-              {/* <CustomText style={styles.timestamp}>
-                {formatTime(item?.created_at)}
-              </CustomText> */}
               {item?.reactions?.length > 0 && (
                 <View style={styles.reactionsContainer}>
                   {item.reactions.slice(0, 2).map((reaction, index) => {
+
                     const isCurrentUserReaction = reaction.user_id === User;
+                    const lottieSource = getLottieForEmoji(reaction.reaction);
+
                     return (
                       <Pressable
                         key={index}
                         style={[
                           styles.reactionBubble,
                           isCurrentUserReaction && styles.currentUserReaction,
+                          lottieSource && {
+                            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                            paddingHorizontal: 0,
+                          },
                         ]}
                         onPress={() => handleEmojiModal(item)}
                         android_ripple={{ color: '#eee' }}
                       >
-                        <CustomText style={styles.reactionEmoji}>
-                          {reaction.reaction}
-                        </CustomText>
+
+                        {lottieSource ? (
+                          <LottieView
+                            source={lottieSource}
+                            autoPlay
+                            loop
+                            style={{ width: 20, height: 20 }}
+                          />
+                        ) : (
+                          <CustomText style={styles.reactionEmoji}>
+                            {reaction.reaction}
+                          </CustomText>
+                        )}
+
                         {reaction.count > 1 && (
                           <CustomText style={styles.reactionCount}>
                             {reaction.count}
                           </CustomText>
                         )}
+
                       </Pressable>
                     );
                   })}
+
                   {item.reactions.length > 2 && (
-                    <Pressable onPress={() => handleEmojiModal(item)} android_ripple={{ color: '#eee' }}>
-                      <CustomText style={[styles.moreReactions, { marginRight: 5, marginLeft: 0, }]}>+{item.reactions.length - 2}</CustomText>
+                    <Pressable
+                      onPress={() => handleEmojiModal(item)}
+                      android_ripple={{ color: '#eee' }}
+                    >
+                      <CustomText
+                        style={[
+                          styles.moreReactions,
+                          { marginRight: 5, marginLeft: 0 },
+                        ]}
+                      >
+                        +{item.reactions.length - 2}
+                      </CustomText>
                     </Pressable>
                   )}
+
                 </View>
               )}
             </View>
+
           </View>
         </TouchableOpacity>
       ) : (
+
+
         <TouchableOpacity
-          onLongPress={e => {
+          onLongPress={(e) => {
             setSelectedMessageId(item.id);
             handleEmojiPress(e, item);
           }}
@@ -671,44 +998,173 @@ const ThreadScreen = ({ navigation, route }) => {
           activeOpacity={1}
           style={[
             styles.messageContainer,
-            {
-              marginLeft: 15,
-            },
+            { marginLeft: 15 },
             selectedMessageId === item.id && {
               backgroundColor: '#FC8C4D26',
               marginLeft: 0,
             },
-          ]}>
+          ]}
+        >
           <View style={styles.SenderMessageContent}>
-            <View style={styles.SenderMessageBubble}>
+
+            <View
+              style={[
+                styles.SenderMessageBubble,
+                isOnlyEmojis(String(item?.content)) &&
+                splitEmojis(String(item?.content)).length === 1 && {
+                  backgroundColor: 'transparent',
+                },
+              ]}
+            >
+
+              {/* Single Lottie Emoji */}
+              {item.lottie_emoji ? (
+                <LottieView
+                  source={{ uri: item.lottie_emoji }}
+                  autoPlay
+                  loop
+                  style={{ width: 60, height: 60, alignSelf: 'center' }}
+                />
+              ) : Array.isArray(item.lottie_emojis) && item.lottie_emojis.length > 0 ? (
+
+                /* Multiple Lottie Emoji */
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    maxWidth: '90%',
+                  }}
+                >
+                  {item.lottie_emojis.map((url, idx, arr) => (
+                    <LottieView
+                      key={idx}
+                      source={{ uri: url }}
+                      autoPlay
+                      loop
+                      style={{
+                        width: getEmojiSize(arr.length),
+                        height: getEmojiSize(arr.length),
+                        margin: 2,
+                      }}
+                    />
+                  ))}
+                </View>
+
+              ) : isOnlyEmojis(String(item?.content)) &&
+                splitEmojis(String(item?.content)).length > 0 ? (
+
+                /* Normal Emoji */
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    maxWidth: '90%',
+                  }}
+                >
+                  {splitEmojis(String(item?.content)).map((emoji, idx, arr) => (
+                    <LottieView
+                      key={idx}
+                      source={{ uri: getLottieUrlForEmoji(emoji) }}
+                      autoPlay
+                      loop
+                      style={{
+                        width: getEmojiSize(arr.length),
+                        height: getEmojiSize(arr.length),
+                        margin: 2,
+                      }}
+                    />
+                  ))}
+                </View>
+
+              ) : (
+
+                /* Normal Text */
+                // <CustomText
+                //   style={[
+                //     styles.messageText,
+                //     { color: mainWhiteColor },
+                //   ]}
+                // >
+                //   {item.content}
+                // </CustomText>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', maxWidth: '90%' }}>
+                  {(() => {
+                    const emojiRegex = /\p{Extended_Pictographic}/gu;
+                    const parts = String(item.content).split(emojiRegex);
+                    const emojis = String(item.content).match(emojiRegex) || [];
+                    const nodes = [];
+                    for (let i = 0; i < parts.length; i++) {
+                      if (parts[i]) {
+                        nodes.push(
+                          <CustomText key={`text-${i}`} style={[styles.messageText, { color: "#000000" }]}>{parts[i]}</CustomText>
+                        );
+                      }
+                      if (emojis[i]) {
+                        nodes.push(
+                          <LottieView
+                            key={`emoji-${i}`}
+                            source={{ uri: getLottieUrlForEmoji(emojis[i]) }}
+                            autoPlay
+                            loop
+                            style={{ width: 20, height: 20, margin: 2 }}
+                          />
+                        );
+                      }
+                    }
+                    return nodes;
+                  })()}
+                </View>
+
+              )}
+
+              {/* Timestamp */}
               <CustomText
                 style={[
-                  styles.messageText,
-                  {
-                    color: mainWhiteColor,
+                  styles.timestamp,
+                  { alignSelf: 'flex-end', color: "#000000" },
+                  isOnlyEmojis(String(item?.content)) &&
+                  splitEmojis(String(item?.content)).length === 1 && {
+                    color: DarkColor80,
                   },
-                ]}>
-                {item.content}
-              </CustomText>
-              <CustomText style={[styles.timestamp, { alignSelf: 'flex-end', color: mainWhiteColor }]}>
+                ]}
+              >
                 {formatTime(item?.created_at)}
               </CustomText>
+
             </View>
-            <View style={styles.metaContainer}>
+
+
+            {/* Reactions */}
+            <View style={[styles.metaContainer]}>
               {item?.reactions?.length > 0 && (
                 <View style={styles.reactionsContainer}>
                   {item.reactions.slice(0, 2).map((reaction, index) => (
                     <Pressable
                       key={index}
-                      style={styles.reactionBubble}
-                      onPress={() => handleEmojiModal(item)}
+                      style={[
+                        styles.reactionBubble,
+                        getLottieForEmoji(reaction.reaction) && {
+                          backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                          paddingHorizontal: 0,
+                        },
+                      ]}
                       android_ripple={{ color: '#eee' }}
                     >
-                      <CustomText style={styles.reactionEmoji}>
-                        {reaction.reaction}
-                      </CustomText>
+                      {getLottieForEmoji(reaction.reaction) ? (
+                        <LottieView
+                          source={getLottieForEmoji(reaction.reaction)}
+                          autoPlay
+                          loop
+                          style={{ width: 16, height: 16 }}
+                        />
+                      ) : (
+                        <CustomText style={styles.reactionEmoji}>
+                          {reaction.reaction}
+                        </CustomText>
+                      )}
                     </Pressable>
                   ))}
+
                   {item.reactions.length > 2 && (
                     <Pressable onPress={() => handleEmojiModal(item)}>
                       <CustomText style={styles.moreReactions}>
@@ -718,10 +1174,8 @@ const ThreadScreen = ({ navigation, route }) => {
                   )}
                 </View>
               )}
-              {/* <CustomText style={[styles.timestamp, { marginLeft: 5 }]}>
-                {formatTime(item?.created_at)}
-              </CustomText> */}
             </View>
+
           </View>
         </TouchableOpacity>
       )}
@@ -977,8 +1431,14 @@ const styles = StyleSheet.create({
   },
   messageContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  msgsenderName: {
+    color: DarkColor,
+    fontFamily: fonts.PoppinsRegular,
+    marginBottom: -4,
+    fontSize: 10,
   },
   avatar: {
     width: 40,
@@ -988,9 +1448,9 @@ const styles = StyleSheet.create({
   avatarContainer: {
     borderWidth: 1,
     borderColor: mainOrangeColor,
-    width: 41,
-    height: 41,
-    borderRadius: 20,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1045,7 +1505,7 @@ const styles = StyleSheet.create({
     // borderRadius: 18,
     // alignSelf: 'flex-start',
     // flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F2F7FB',
     borderRadius: 15,
     borderTopRightRadius: 8,
     borderBottomRightRadius: 8,
@@ -1058,8 +1518,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 1,
-    elevation: 1,
+    // elevation: 1,
     minWidth: RfW(110),
+    maxWidth: '90%',
   },
 
   SenderMessageBubble: {
@@ -1069,7 +1530,7 @@ const styles = StyleSheet.create({
     // borderRadius: 18,
     // alignSelf: 'flex-end',
     // flexDirection: 'row',
-    backgroundColor: mainOrangeColor,
+    backgroundColor: mainOrange50,
     borderRadius: 15,
     borderTopLeftRadius: 8,
     borderBottomLeftRadius: 8,
@@ -1078,11 +1539,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 2,
     minWidth: RfW(100),
+    maxWidth: '90%',
   },
   messageText: {
-    fontSize: 12,
+    fontSize: RfH(12),
     color: DarkColor,
-    fontFamily: fonts.PoppinsRegular,
   },
   metaContainer: {
     flexDirection: 'row',
@@ -1090,7 +1551,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   timestamp: {
-    fontSize: 10,
+    fontSize: RfH(10),
     color: DarkColor80,
     fontFamily: fonts.PoppinsLight,
   },
@@ -1101,15 +1562,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     marginTop: 10,
-    marginHorizontal: 16,
+    marginHorizontal: 10,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
   replyCountText: {
-    fontSize: 14,
+    fontSize: RfH(14),
     color: '#65676B',
     fontWeight: '500',
   },

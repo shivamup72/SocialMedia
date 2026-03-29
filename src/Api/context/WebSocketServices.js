@@ -17,6 +17,7 @@ import {
 } from '../../utils/notificationManager';
 import RNRestart from 'react-native-restart';
 import {useSettings} from './SettingsContext';
+import {getPendingMessages, updateMessageStatus} from '../../utils/chatSQLite';
 
 const WebSocketContext = createContext({
   isConnected: false,
@@ -262,6 +263,18 @@ export const WebSocketProvider = ({children}) => {
               });
               outgoingQueue.current = [];
             }
+            // Send pending messages from SQLite
+            getPendingMessages(async pendingMessages => {
+              for (const pending of pendingMessages) {
+                try {
+                  ws.current.send(JSON.stringify(JSON.parse(pending.content)));
+                  updateMessageStatus(pending.id, 'sent');
+                  console.log('Sent pending SQLite message:', pending);
+                } catch (e) {
+                  console.error('Failed to send pending SQLite message:', e);
+                }
+              }
+            });
             if (reconnectTimeout.current) {
               clearTimeout(reconnectTimeout.current);
               reconnectTimeout.current = null;
@@ -292,15 +305,11 @@ export const WebSocketProvider = ({children}) => {
                 return;
               }
 
+              // Log the full WebSocket response in a web-like format
               // console.log(
-              //   '\n',
-              //   '\n',
-              //   '\n',
-              //   'Received WebSocket message: check 5',
-              //   parsed,
-              //   '\n',
-              //   '\n',
-              //   '\n',
+              //   '\n================ SOCKET RESPONSE ================\n',
+              //   JSON.stringify(parsed, null, 2),
+              //   '\n=================================================\n',
               // );
               if (
                 parsed?.message !== 'Threads messages retrieved successfully'

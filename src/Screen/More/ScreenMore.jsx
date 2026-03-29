@@ -16,6 +16,8 @@ import CustomText from '../../utils/CustomText';
 import ProfileCard from '../../components/ProfileComponent/ProfileCard';
 import HubSection from '../../components/ProfileComponent/HubSection';
 import MenuList from '../../components/ProfileComponent/MenuList';
+import BackArrow from '../../assets/svg/BackArrowSvg';
+
 import menuItems from '../../components/ProfileComponent/menuItems';
 
 import {
@@ -30,17 +32,17 @@ import { RfH, RfW } from '../../utils/helper';
 import ScreenView from '../../utils/ScreenView';
 import { logout } from '../../redux/slices/authSlice';
 import { useDispatch } from 'react-redux';
-import Header from '../Timely/TimelyheaderComponents/Header';
 import HeaderComponents from '../../components/HeaderComponents/HeaderComponents';
 import { useWebSocket } from '../../Api/context/WebSocketServices';
+import { useNavigation } from '@react-navigation/native';
 
-const ScreenMore = ({ setHideTabBar }) => {
+const ScreenMore = ({ setHideTabBar, navigation: navigationProp }) => {
   const dispatch = useDispatch();
   const { disconnect } = useWebSocket();
-
   const [isLoading, setIsLoading] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const navigation = navigationProp || useNavigation();
 
   /* ---------------- LOGOUT ---------------- */
 
@@ -185,7 +187,31 @@ const ScreenMore = ({ setHideTabBar }) => {
   return (
     <ScreenView>
       <StatusBar barStyle="dark-content" />
-      <HeaderComponents Type={'More'} />
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderBottomColor: '#FC8C4D',
+        borderBottomWidth: 1.3,
+        backgroundColor: '#fff',
+      }}>
+        {/* <TouchableOpacity
+          style={{ paddingTop: 5, paddingRight: 15 }}
+          onPress={() => navigation.goBack()}>
+          <BackArrow width={'18'} height={'18'} />
+        </TouchableOpacity> */}
+        <CustomText style={{
+          fontSize: 18,
+          fontFamily: fonts.PoppinsSemiBold,
+          color: DarkColor,
+          top: RfH(2),
+          textAlign: 'center',
+          alignSelf: 'center'
+        }}>
+          More
+        </CustomText>
+      </View>
       <View style={{ position: 'absolute', bottom: RfH(100), width: '100%', alignSelf: 'flex-start' }}>
         <View style={{ height: RfH(168), width: RfW(184), }}>
           <Image

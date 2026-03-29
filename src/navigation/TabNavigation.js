@@ -19,6 +19,7 @@ import ScreenTimely from '../Screen/Timely/ScreenTimely';
 import {useWebSocket} from '../Api/context/WebSocketServices';
 import {fonts, mainOrangeColor} from '../utils/style/fonts';
 import {RfW} from '../utils/helper';
+import {useRoute} from '@react-navigation/native';
 
 const tabBackgrounds = [
   require('../assets/Png/timely-active.jpg'),
@@ -31,7 +32,6 @@ const TOAST_HIDE_DELAY = 2000;
 
 const TabNavigation = () => {
   const {lastMessage, manageNewMessageToastChatScreen} = useWebSocket();
-
   const [activeTab, setActiveTab] = useState(1);
   const [hideTabBar, setHideTabBar] = useState(false);
 

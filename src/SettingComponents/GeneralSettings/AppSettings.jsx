@@ -49,7 +49,7 @@ const AppSettings = () => {
                 </TouchableOpacity>
 
                 {/* LANGUAGE */}
-                <CustomText style={[styles.label, { marginTop: 20 }]}>
+                <CustomText style={[styles.label, { marginTop: 10 }]}>
                     App Language
                 </CustomText>
                 <TouchableOpacity
@@ -110,22 +110,23 @@ export default AppSettings;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        marginTop: RfH(20)
+        marginTop: RfH(10)
     },
     heading: {
         fontSize: 16,
-        marginBottom: 10,
+        marginBottom: 4,
         fontFamily: fonts.PoppinsMedium,
         color: DarkColor,
     },
     card: {
         backgroundColor: '#FFFFFF',
         borderRadius: 6,
-        padding: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
         shadowColor: '#000',
         shadowOpacity: 0.08,
         shadowRadius: 6,
-        elevation: 3,
+        elevation: 1,
     },
     label: {
         fontSize: 16,
@@ -133,7 +134,7 @@ const styles = StyleSheet.create({
         color: DarkColor,
     },
     dropdown: {
-        height: 45,
+        height: 34,
         borderWidth: 1,
         borderColor: '#CFCFCF',
         borderRadius: 4,

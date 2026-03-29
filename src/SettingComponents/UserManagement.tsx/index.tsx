@@ -28,12 +28,12 @@ const styles = StyleSheet.create({
     container: {
         backgroundColor: '#FFFFFF',
         borderRadius: 8,
-        paddingVertical: RfH(16),
+        paddingVertical: RfH(6),
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
         shadowRadius: 4,
-        elevation: 5,
+        elevation: 1,
         marginTop: RfH(15),
     },
     headerTitle: {
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: RfW(16),
         backgroundColor: mainOrange10,
-        paddingVertical: RfH(10)
+        paddingVertical: RfH(6)
         // marginBottom: 16,
     },
     headerIcon: {

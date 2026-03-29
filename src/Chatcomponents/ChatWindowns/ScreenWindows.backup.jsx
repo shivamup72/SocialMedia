@@ -484,6 +484,7 @@ const ScreenWindows = ({ navigation, route }) => {
               setSelectedMessage={setSelectedMessage}
               editmessagestatus={Editmessagestatus}
               setEditmessagestatus={setEditmessagestatus}
+              conversation_id={conversationId}
             />
           </View>
         </TouchableWithoutFeedback>

@@ -71,9 +71,9 @@ android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
-    namespace 'com.rigglex'
+    namespace 'com.riggle.rigglex'
     defaultConfig {
-        applicationId 'com.rigglex'
+        applicationId 'com.riggle.rigglex'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 7
@@ -101,11 +101,11 @@ android {
 
 dependencies {
     implementation('com.facebook.react:react-android')
-    implementation platform('com.google.firebase:firebase-bom:34.1.0')
+    implementation platform('com.google.firebase:firebase-bom:34.10.0')
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-auth'
     implementation 'com.google.firebase:firebase-firestore'
-
+    implementation project(':react-native-fs')
     if (hermesEnabled.toBoolean()) {
         implementation('com.facebook.react:hermes-android')
     } else {

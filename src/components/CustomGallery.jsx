@@ -11,11 +11,12 @@ import {
     Platform,
     Alert,
     ActivityIndicator,
+    Text
 } from 'react-native';
-import CustomText from '../utils/CustomText';
+
 import { CameraRoll } from '@react-native-camera-roll/camera-roll';
-import { DarkColor, fonts, mainOrangeColor, mainWhiteColor } from '../utils/style/fonts';
-import { RfH } from '../utils/helper';
+import RNFS from 'react-native-fs';
+import { fonts } from '../utils/style/fonts';
 
 const numColumns = 3;
 const { width } = Dimensions.get('window');
@@ -27,104 +28,150 @@ const FILTERS = [
     { label: 'Videos', value: 'Videos' },
 ];
 
+// fallback function to get size
+const getFileSize = async (uri) => {
+    try {
+        const stat = await RNFS.stat(uri);
+        return stat.size;
+    } catch (e) {
+        console.log('Size error:', e);
+        return 0;
+    }
+};
+
 const CustomGallery = ({ visible, onClose, onSelect }) => {
+
     const [images, setImages] = useState([]);
     const [loading, setLoading] = useState(false);
     const [selectedFilter, setSelectedFilter] = useState('All');
     const [endCursor, setEndCursor] = useState(null);
     const [hasNextPage, setHasNextPage] = useState(true);
 
-    // =========================
-    // Permission
-    // =========================
+    // ================= Permission =================
     const requestGalleryPermission = async () => {
+
         if (Platform.OS === 'android') {
+
             try {
+
                 if (Platform.Version >= 33) {
+
                     const granted = await PermissionsAndroid.request(
                         PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
                     );
+
                     return granted === PermissionsAndroid.RESULTS.GRANTED;
+
                 } else {
+
                     const granted = await PermissionsAndroid.request(
                         PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE
                     );
+
                     return granted === PermissionsAndroid.RESULTS.GRANTED;
                 }
+
             } catch (err) {
                 console.log(err);
                 return false;
             }
         }
+
         return true;
     };
 
-    // =========================
-    // Fetch Gallery (Pagination)
-    // =========================
-    const fetchGalleryImages = useCallback(
-        async (filterType = 'All', loadMore = false) => {
-            if (loading) return;
+    // ================= Fetch Gallery =================
+    const fetchGalleryImages = useCallback(async (filterType = 'All', loadMore = false) => {
 
-            setLoading(true);
+        if (loading) return;
 
-            const hasPerm = await requestGalleryPermission();
-            if (!hasPerm) {
-                Alert.alert('Permission required', 'Please allow gallery access.');
-                setLoading(false);
-                return;
-            }
+        setLoading(true);
 
-            try {
-                const photos = await CameraRoll.getPhotos({
-                    first: 50, // batch size
-                    assetType: filterType,
-                    after: loadMore ? endCursor : undefined,
-                });
+        const hasPerm = await requestGalleryPermission();
 
-                const newImages = photos.edges.map((edge, index) => ({
-                    id: edge.node.image.uri + index,
-                    uri: edge.node.image.uri,
-                    type: edge.node.type,
-                }));
-
-                setImages(prev =>
-                    loadMore ? [...prev, ...newImages] : newImages
-                );
-
-                setEndCursor(photos.page_info.end_cursor);
-                setHasNextPage(photos.page_info.has_next_page);
-            } catch (error) {
-                console.log('Gallery Error:', error);
-                Alert.alert('Error', 'Unable to load gallery.');
-            }
-
+        if (!hasPerm) {
+            Alert.alert('Permission required', 'Please allow gallery access.');
             setLoading(false);
-        },
-        [endCursor, loading]
-    );
+            return;
+        }
 
-    // =========================
-    // Reset When Open / Filter Change
-    // =========================
+        try {
+
+            const photos = await CameraRoll.getPhotos({
+                first: 50,
+                assetType: filterType,
+                after: loadMore ? endCursor : undefined,
+                include: ['filename', 'fileSize', 'imageSize', 'playableDuration'],
+            });
+
+            const newImages = photos.edges.map((edge, index) => ({
+                id: edge.node.image.uri + index,
+                uri: edge.node.image.uri,
+                type: edge.node.type,
+                file_name: edge.node.image.filename,
+                file_size: edge.node.image.fileSize,
+            }));
+
+            setImages(prev =>
+                loadMore ? [...prev, ...newImages] : newImages
+            );
+
+            setEndCursor(photos.page_info.end_cursor);
+            setHasNextPage(photos.page_info.has_next_page);
+
+        } catch (error) {
+
+            console.log('Gallery error:', error);
+            Alert.alert('Error', 'Unable to load gallery.');
+        }
+
+        setLoading(false);
+
+    }, [endCursor, loading]);
+
+    // ================= Load On Open =================
     useEffect(() => {
         if (visible) {
             setImages([]);
             setEndCursor(null);
             setHasNextPage(true);
+            setLoading(true); // Reset loading state on open/filter change
             fetchGalleryImages(selectedFilter);
+        } else {
+            setLoading(false); // Hide loading when modal is closed
         }
     }, [visible, selectedFilter]);
 
-    // =========================
-    // Render Item
-    // =========================
+    // ================= Render Item =================
     const renderItem = ({ item }) => (
+
         <TouchableOpacity
             style={styles.imageWrapper}
-            onPress={() => onSelect(item)}
+            onPress={async () => {
+
+                let size = item.file_size;
+
+                if (!size) {
+                    size = await getFileSize(item.uri);
+                }
+
+                const fileData = {
+                    uri: item.uri,
+                    name: item.file_name || `media_${Date.now()}`,
+                    size,
+                    type: item.type?.includes('video') ? 'video/mp4' : 'image/jpeg',
+                };
+
+                onSelect(fileData);
+                onClose();
+            }}
         >
-            <Image source={{ uri: item.uri }} style={styles.image} />
+
+            <Image
+                source={{ uri: item.uri }}
+                style={styles.image}
+            />
+
         </TouchableOpacity>
     );
 
@@ -139,9 +186,11 @@ const CustomGallery = ({ visible, onClose, onSelect }) => {
                 <View style={styles.container}>
                     {/* Header */}
                     <View style={styles.header}>
-                        <CustomText style={styles.title}>Gallery</CustomText>
                         <TouchableOpacity onPress={onClose}>
-                            <CustomText style={styles.close}>×</CustomText>
+                            <Image
+                                source={{ uri: 'https://img.icons8.com/ios-filled/50/000000/multiply.png' }}
+                                style={{ width: 24, height: 24 }}
+                            />
                         </TouchableOpacity>
                     </View>
 
@@ -152,20 +201,18 @@ const CustomGallery = ({ visible, onClose, onSelect }) => {
                                 key={filter.value}
                                 style={[
                                     styles.filterButton,
-                                    selectedFilter === filter.value &&
-                                    styles.filterButtonActive,
+                                    selectedFilter === filter.value && styles.filterButtonActive,
                                 ]}
                                 onPress={() => setSelectedFilter(filter.value)}
                             >
-                                <CustomText
+                                <Text
                                     style={[
                                         styles.filterText,
-                                        selectedFilter === filter.value &&
-                                        styles.filterTextActive,
+                                        selectedFilter === filter.value && styles.filterTextActive,
                                     ]}
                                 >
                                     {filter.label}
-                                </CustomText>
+                                </Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -184,54 +231,57 @@ const CustomGallery = ({ visible, onClose, onSelect }) => {
                         }}
                         onEndReachedThreshold={0.5}
                         ListFooterComponent={
-                            loading ? <ActivityIndicator size="large" color={mainOrangeColor} /> : null
-                        }
-                        ListEmptyComponent={
-                            !loading && (
-                                <CustomText style={styles.emptyText}>
-                                    No media found.
-                                </CustomText>
-                            )
+                            loading ? <ActivityIndicator size="small" /> : null
                         }
                     />
                 </View>
             </View>
         </Modal>
     );
+
 };
 
+export default CustomGallery;
+
+// ================= Styles =================
 const styles = StyleSheet.create({
+
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.7)',
         justifyContent: 'flex-end',
     },
+
     container: {
-        backgroundColor: mainWhiteColor,
+        backgroundColor: '#fff',
         maxHeight: '70%',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
+    },
+
+    header: {
+        padding: 16,
+        alignItems: 'flex-end',
+    },
+
+    gallery: {
+        padding: 4,
+    },
+
+    imageWrapper: {
+        margin: 4,
+        borderRadius: 8,
         overflow: 'hidden',
     },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 16,
-        backgroundColor: mainOrangeColor,
-    },
-    title: {
-        fontSize: 18,
-        fontFamily: fonts.PoppinsMedium,
-        color: DarkColor,
-    },
-    close: {
-        fontSize: 32,
-        color: '#333',
+
+    image: {
+        width: imageSize,
+        height: imageSize,
     },
     filterBar: {
         flexDirection: 'row',
         justifyContent: 'space-around',
+        alignItems: 'center',
         paddingVertical: 8,
         backgroundColor: '#f7f7f7',
         borderBottomWidth: 1,
@@ -242,43 +292,22 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         borderRadius: 16,
         backgroundColor: '#eee',
-        minWidth: RfH(80),
+        marginHorizontal: 4,
+        minWidth: 100,
         alignItems: 'center',
-        justifyContent: 'center',
+
     },
     filterButtonActive: {
-        backgroundColor: mainOrangeColor,
-        minWidth: RfH(80),
-        alignItems: 'center',
-        justifyContent: 'center',
+        backgroundColor: '#ff9800',
     },
     filterText: {
-        color: DarkColor,
+        color: '#333',
         fontFamily: fonts.PoppinsMedium,
-        fontSize: RfH(14),
+        fontSize: 12,
     },
     filterTextActive: {
-        color: mainWhiteColor,
+        color: '#fff',
         fontFamily: fonts.PoppinsMedium,
-        fontSize: RfH(14),
-    },
-    gallery: {
-        padding: RfH(4),
-    },
-    imageWrapper: {
-        margin: RfH(2),
-        borderRadius: RfH(8),
-        overflow: 'hidden',
-    },
-    image: {
-        width: imageSize,
-        height: imageSize,
-        resizeMode: 'cover',
-    },
-    emptyText: {
-        textAlign: 'center',
-        marginTop: RfH(40),
+        fontSize: 12,
     },
 });
-
-export default CustomGallery;

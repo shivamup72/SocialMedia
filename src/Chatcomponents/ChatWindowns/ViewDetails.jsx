@@ -43,7 +43,7 @@ import { useWebRTC } from '../../Api/context/WebRTCProvider';
 import AsyncStorage1 from '../../Api/config/AsyncStorage';
 // import { useWebSocket } from '../../context/WebSocketServices';
 import Toast from '../../Api/context/Toast';
-import { RfW } from '../../utils/helper';
+import { RfH, RfW } from '../../utils/helper';
 
 const ViewDetails = ({ navigation, route }) => {
   console.log(
@@ -69,6 +69,8 @@ const ViewDetails = ({ navigation, route }) => {
   const gradientColors = ['#F5D3BF', '#FFFFFF', '#F3DED3'];
   const { isConnected, lastMessage, sendMessage } = useWebSocket();
   const [profileData, setProfileData] = useState(null);
+  console.log(JSON.stringify(profileData), "Profile Data in View Details");
+
 
   const [Admin, setAdmin] = useState([]);
   console.log(Admin, "admin ======>");
@@ -333,7 +335,7 @@ const ViewDetails = ({ navigation, route }) => {
     const hasPermissions = await requestCallPermissions(false);
     if (hasPermissions) {
       console.log('Initiating audio call to:', route.params.GroupId, '\n');
-      initiateCall(route.params.GroupId, false);
+      initiateCall(route.params.GroupId, false, route.params.conversationId);
       navigation.navigate('CallScreen', { type: 'audio' });
     }
   };
@@ -342,7 +344,7 @@ const ViewDetails = ({ navigation, route }) => {
     const hasPermissions = await requestCallPermissions(true);
     if (hasPermissions) {
       console.log('Initiating video call to:', route.params.GroupId);
-      initiateCall(route.params.GroupId, true);
+      initiateCall(route.params.GroupId, true, route.params.conversationId);
       navigation.navigate('CallScreen', { type: 'video' });
     }
   };
@@ -356,121 +358,148 @@ const ViewDetails = ({ navigation, route }) => {
         useAngle={true}
         angle={145}
         angleCenter={{ x: 0.5, y: 0.5 }}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => {
-              navigation.goBack();
-            }}>
-            <BackArrowSvg width={20} height={20} color={DarkColor} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.contentContainer}>
-          <View style={styles.groupIconEditWrapper}>
-            <TouchableOpacity style={styles.groupIconPlaceholder}>
-              {profileData?.data?.media_files?.items?.group_image ? (
-                <Image
-                  source={{ uri: profileData.data.media_files[0].group_image }}
-                  style={{ width: '100%', height: '100%', borderRadius: 40 }}
-                  resizeMode="cover"
-                />
-              ) : route?.params?.isGroup ? (
-                <ContactPersonSvgIcon width={35} height={35} />
-              ) : (
-                (() => {
-                  const name = (profileData?.name || route?.params?.name || '').trim();
-                  if (!name) return null;
-                  const parts = name.split(' ');
-                  let initials = '';
-                  if (parts.length === 1) {
-                    initials = parts[0][0]?.toUpperCase() || '';
-                  } else if (parts.length > 1) {
-                    initials = (parts[0][0] || '') + (parts[parts.length - 1][0] || '');
-                    initials = initials.toUpperCase();
-                  }
-                  return (
-                    <View style={{
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <Text style={{ color: '#fff', fontSize: 18, fontFamily: fonts.PoppinsMedium, lineHeight: 24 }}>{initials}</Text>
-                    </View>
-                  );
-                })()
-              )}
-            </TouchableOpacity>
-
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'center', left: RfW(6) }}>
-            {route?.params?.name.trim() !== '' && (
-              <Text style={styles.nameText} numberOfLines={1}>
-                {(
-                  (profileData?.name || route?.params?.name) || ''
-                ).length > 20
-                  ? (profileData?.name || route?.params?.name).slice(0, 20) + '...'
-                  : (profileData?.name || route?.params?.name)
-                }
-              </Text>
-
-            )}
-            {route?.params?.isGroup && Admin?.is_admin == true && (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row' }}>
+            <View style={styles.header}>
               <TouchableOpacity
-                style={styles.editIconButton}
+                style={styles.backButton}
                 onPress={() => {
-                  setEditGroupNameModalVisible(true);
-                  setEditGroupNameValue(profileData?.name || route?.params?.name);
-                }}
-              >
-                {typeof PencilSvg !== 'undefined' ? (
-                  <PencilSvg width={14} height={14} color={mainOrangeColor} />
-                ) : (
-                  <CameraSvg width={14} height={14} color={mainOrangeColor} />
-                )}
+                  navigation.goBack();
+                }}>
+                <BackArrowSvg width={20} height={20} color={DarkColor} />
               </TouchableOpacity>
-            )}
+            </View>
+            <View style={[styles.contentContainer, { left: route?.params?.isGroup ? '82%' : '50%' }]}>
+              <View style={[styles.groupIconEditWrapper, { bottom: RfH(10) }]}>
+                <TouchableOpacity style={styles.groupIconPlaceholder}>
+                  {profileData?.data?.media_files?.items?.group_image ? (
+                    <Image
+                      source={{ uri: profileData.data.media_files[0].group_image }}
+                      style={{ width: '100%', height: '100%', borderRadius: 40 }}
+                      resizeMode="cover"
+                    />
+                  ) : route?.params?.isGroup ? (
+                    <ContactPersonSvgIcon width={RfW(35)} height={RfH(35)} />
+                  ) : (
+                    (() => {
+                      const name = (profileData?.name || route?.params?.name || '').trim();
+                      if (!name) return null;
+                      const parts = name.split(' ');
+                      let initials = '';
+                      if (parts.length === 1) {
+                        initials = parts[0][0]?.toUpperCase() || '';
+                      } else if (parts.length > 1) {
+                        initials = (parts[0][0] || '') + (parts[parts.length - 1][0] || '');
+                        initials = initials.toUpperCase();
+                      }
+                      return (
+                        <View style={{
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          alignContent: 'center'
+                        }}>
+                          <Text style={{ color: mainOrangeColor, fontSize: RfH(22), fontFamily: fonts.PoppinsMedium, lineHeight: RfH(24), alignSelf: 'center', textAlign: 'center', top: RfH(4) }}>{initials}</Text>
+                        </View>
+                      );
+                    })()
+                  )}
+                </TouchableOpacity>
+
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'center', left: RfW(6), marginTop: RfH(4) }}>
+                {route?.params?.name.trim() !== '' && (
+                  <Text style={styles.nameText} numberOfLines={1}>
+                    {(
+                      (profileData?.name || route?.params?.name) || ''
+                    ).length > 20
+                      ? (profileData?.name || route?.params?.name).slice(0, 20) + '...'
+                      : (profileData?.name || route?.params?.name)
+                    }
+                  </Text>
+
+                )}
+                {route?.params?.isGroup && Admin?.is_admin == true && (
+                  <TouchableOpacity
+                    style={styles.editIconButton}
+                    onPress={() => {
+                      setEditGroupNameModalVisible(true);
+                      setEditGroupNameValue(profileData?.name || route?.params?.name);
+                    }}
+                  >
+                    {typeof PencilSvg !== 'undefined' ? (
+                      <PencilSvg width={14} height={14} color={mainOrangeColor} />
+                    ) : (
+                      <CameraSvg width={14} height={14} color={mainOrangeColor} />
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
+              {!route?.params?.isGroup && (
+                <View style={{ justifyContent: 'center', alignItems: 'center' }}>
+                  <Text
+                    style={{
+                      fontFamily: fonts.PoppinsMedium,
+                      fontSize: 12,
+                      color: DarkColor,
+                    }}>
+                    {route?.params?.email}
+                  </Text>
+                </View>
+              )}
+              {route?.params?.isGroup && (
+                <View style={{ justifyContent: 'center', alignItems: 'center' }}>
+                  <Text
+                    style={{
+                      fontFamily: fonts.PoppinsMedium,
+                      fontSize: 12,
+                      color: DarkColor,
+                    }}>
+                    Group: {profileData?.data?.members?.items?.length} Members
+                  </Text>
+                </View>
+              )}
+
+
+
+              {!route?.params?.isGroup && (
+                <>
+                  {profileData?.designation && (
+                    <Text style={styles.designationText}>
+                      {profileData.designation}
+                    </Text>
+                  )}
+                  {profileData?.phone_number && (
+                    <View style={styles.phoneContainer}>
+                      <PhoneSvgIcon width={18} height={18} color={DarkColor} />
+                      <Text style={styles.phoneText}>
+                        Phone:{' '}
+                        <Text
+                          style={{
+                            color: DarkColor80,
+                            fontFamily: fonts.PoppinsRegular,
+                          }}>
+                          {profileData.phone_number}
+                        </Text>
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
           </View>
-
-
-
-          {!route?.params?.isGroup && (
-            <View style={{ justifyContent: 'center', alignItems: 'center' }}>
-              <Text
-                style={{
-                  fontFamily: fonts.PoppinsMedium,
-                  fontSize: 12,
-                  color: DarkColor,
-                }}>
-                {route?.params?.email}
-              </Text>
-            </View>
-          )}
-          {route?.params?.isGroup && (
-            <View style={{ justifyContent: 'center', alignItems: 'center' }}>
-              <Text
-                style={{
-                  fontFamily: fonts.PoppinsMedium,
-                  fontSize: 12,
-                  color: DarkColor,
-                }}>
-                Group: {profileData?.data?.members?.items?.length} Members
-              </Text>
-            </View>
-          )}
           {!route?.params?.isGroup && (
             <View
               style={{
+                // flex: 1,
                 flexDirection: 'row',
-                alignItems: 'center',
+                // alignItems: 'center',
                 justifyContent: 'center',
-                marginTop: 10,
+                marginTop: RfH(40),
+                right: RfW(16)
               }}>
               <TouchableOpacity
                 onPress={handleaudioCall}
                 style={{ marginRight: 20 }}>
-                {/* <Text style={{color: DarkColor, marginRight: 10}}>
-                  Audio Call
-                </Text> */}
                 <AudioCallSvgicon />
               </TouchableOpacity>
               <TouchableOpacity onPress={handleVideoCall}>
@@ -479,31 +508,8 @@ const ViewDetails = ({ navigation, route }) => {
             </View>
           )}
 
-          {!route?.params?.isGroup && (
-            <>
-              {profileData?.designation && (
-                <Text style={styles.designationText}>
-                  {profileData.designation}
-                </Text>
-              )}
-              {profileData?.phone_number && (
-                <View style={styles.phoneContainer}>
-                  <PhoneSvgIcon width={18} height={18} color={DarkColor} />
-                  <Text style={styles.phoneText}>
-                    Phone:{' '}
-                    <Text
-                      style={{
-                        color: DarkColor80,
-                        fontFamily: fonts.PoppinsRegular,
-                      }}>
-                      {profileData.phone_number}
-                    </Text>
-                  </Text>
-                </View>
-              )}
-            </>
-          )}
         </View>
+
       </LinearGradient>
 
       {/* {console.log('profileData media files ====>',profileData)} */}
@@ -650,31 +656,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5D3BF',
   },
   gradientContainer: {
-    height: 280,
+    height: RfH(240),
   },
   header: {
     position: 'absolute',
-    top: 5,
-    left: 5,
+    top: RfH(24),
+    left: RfW(5),
     zIndex: 1,
   },
   backButton: {
-    width: 44,
-    height: 44,
+    width: RfW(44),
+    height: RfH(44),
     alignItems: 'center',
     justifyContent: 'center',
   },
   contentContainer: {
-    flex: 1,
+    // flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: RfW(21),
     marginTop: -10,
+    alignSelf: 'center',
+    top: RfH(50)
+    // alignContent: 'center',
   },
   profileImage: {
-    width: 93,
-    height: 93,
-    borderRadius: 50,
+    width: RfW(93),
+    height: RfH(93),
+    borderRadius: RfW(50),
     borderWidth: 1,
     borderColor: DarkColor20,
     marginBottom: 12,
@@ -710,25 +719,23 @@ const styles = StyleSheet.create({
     borderTopWidth: 1.5,
     borderLeftWidth: 0.5,
     borderRightWidth: 0.5,
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    marginTop: -28,
+    borderTopLeftRadius: RfW(20),
+    borderTopRightRadius: RfW(20),
+    marginTop: -RfH(28),
   },
   groupIconContainer: {
     alignItems: 'center',
     marginBottom: 10,
   },
   groupIconPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 50,
+    width: 94,
+    height: 94,
+    borderRadius: 47,
     borderWidth: 2,
     borderColor: mainOrangeColor,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: mainOrange50,
-    position: 'relative',
-    marginBottom: 10,
+    backgroundColor: mainWhiteColor,
   },
   cameraButton: {
     position: 'absolute',

@@ -1,4 +1,8 @@
 
+// Place this inside the ScreenWindows component, after useWebSocket()
+// Real-time message edit handler
+// (This code block should be inside the component, not at the top level)
+
 import {
   StyleSheet,
   View,
@@ -22,6 +26,7 @@ import Windowsheader from './windowsHeader/Windowsheader';
 import ChatInputBar from './MediaComponents/MediaComponents';
 import { mainOrangeColor, fonts, mainGrayColor, mainOrange80, mainOrange92, mainOrange20, DarkColor, mainWhiteColor } from '../../utils/style/fonts';
 import { useWebSocket } from '../../Api/context/WebSocketServices';
+import { insertMessage, getPendingMessages, getMessages, updateMessageContent } from '../../utils/chatSQLite';
 import { useHeaderHeight } from '@react-navigation/elements';
 import MessageType from './ChatTypeComponents/MessageType';
 import ReactionPicker from './ReactionPicker';
@@ -35,8 +40,43 @@ import DownArrowSvg from '../../assets/svg/DownArrowSvg';
 import CustomText from '../../utils/CustomText';
 
 const ScreenWindows = ({ navigation, route }) => {
+  // --- Real-time message edit handler ---
+  useEffect(() => {
+    if (!lastMessage) return;
+    console.log('Edit event:', lastMessage); // Debug log
+
+    if (lastMessage.action === 'receive_message_updated' && lastMessage.data) {
+      setMessages(prevMessages => {
+        const updated = prevMessages.map(msg =>
+          String(msg.id) === String(lastMessage.data.id)
+            ? { ...msg, ...lastMessage.data }
+            : msg
+        );
+        // Deduplicate if needed
+        const uniqueMessages = [];
+        const seenIds = new Set();
+        for (const msg of updated) {
+          if (!seenIds.has(msg.id)) {
+            uniqueMessages.push(msg);
+            seenIds.add(msg.id);
+          }
+        }
+        return uniqueMessages;
+      });
+      // Update SQLite as well
+      updateMessageContent(
+        lastMessage.data.id,
+        lastMessage.data.content,
+        lastMessage.data.updated_at || new Date().toISOString()
+      );
+    }
+  }, [lastMessage]);
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([]);
+
+
+  // Log to check getMessages import and usage
+  console.log('getMessages functions:', messages);
 
   // Returns a formatted date label for message separators
   const getDateLabel = (date) => {
@@ -51,15 +91,14 @@ const ScreenWindows = ({ navigation, route }) => {
     // Format as e.g. 'Friday, January 23, 2026'
     return msgDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   };
-
   // Memoized: Adds date separators to the messages array for display
   const messagesWithSeparators = React.useMemo(() => {
     if (!messages || messages.length === 0) return [];
     const result = [];
     let lastDate = null;
-    for (let i = messages.length - 1; i >= 0; i--) { // reversed for inverted list
+    for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      if (!msg.created_at) {
+      if (!msg?.created_at) {
         result.unshift(msg);
         continue;
       }
@@ -245,24 +284,12 @@ const ScreenWindows = ({ navigation, route }) => {
   // Handles Android hardware back button
   useEffect(() => {
     const onBackPress = () => {
-      if (
-        route?.params?.navigatetype === 'privatenavigate' ||
-        route?.params?.navigatetype === 'groupnavigate'
-      ) {
-        navigation.navigate('Home', {
-          screen: 'Chat',
-          params: { screen: 'ChatMain' },
-        });
-      } else {
-        navigation.goBack();
-      }
+      navigation.goBack();
       return true;
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
-  }, [navigation, route?.params?.navigatetype]);
-
-
+  }, [navigation]);
 
   // Loads messages from backend (pagination supported)
   const loadMessages = useCallback(
@@ -294,7 +321,41 @@ const ScreenWindows = ({ navigation, route }) => {
       if (route?.params?.isGroup) {
         payload.group_id = route?.params?.GroupId;
       }
-      sendMessage(payload);
+
+      // Wrap sendMessage to intercept and sync messages to SQLite
+      const originalSendMessage = sendMessage;
+      const handleServerMessages = (serverMessages) => {
+        // Save all messages to SQLite
+        serverMessages.forEach(msg => {
+          insertMessage({
+            id: msg.id,
+            conversation_id: msg.conversation_id,
+            sender_id: msg.sender_id,
+            content: msg.content,
+            created_at: msg.created_at,
+            status: msg.status,
+            is_group: msg.is_group,
+            extra: msg,
+          });
+        });
+        // After saving, fetch all messages for this conversation from SQLite
+        getMessages(payload.conversation_id, route?.params?.isGroup, (sqliteMessages) => {
+          // Build a map for quick lookup
+          const sqliteMap = {};
+          sqliteMessages.forEach(m => { sqliteMap[m.id] = m; });
+          // Merge: prefer SQLite data if available
+          const merged = serverMessages.map(msg =>
+            sqliteMap[msg.id] ? { ...msg, ...sqliteMap[msg.id], extra: sqliteMap[msg.id].extra } : msg
+          );
+          setMessages(deduplicateMessages(merged));
+          setLoading(false);
+          setInitialLoading(false);
+        });
+      };
+
+      // Intercept the server response (assumes sendMessage returns a promise or can be hooked)
+      // If not, you may need to hook into your websocket or API response handler
+      originalSendMessage(payload, handleServerMessages);
     },
     [
       isConnected,
@@ -313,6 +374,19 @@ const ScreenWindows = ({ navigation, route }) => {
       loadMessages(nextPage);
     }
   }, [loading, hasMore, page, loadMessages, messages.length]);
+
+  // Helper to deduplicate messages by id
+  const deduplicateMessages = useCallback((allMessages) => {
+    const uniqueMessages = [];
+    const seenIds = new Set();
+    for (const msg of allMessages) {
+      if (!seenIds.has(msg.id)) {
+        uniqueMessages.push(msg);
+        seenIds.add(msg.id);
+      }
+    }
+    return uniqueMessages;
+  }, []);
   // Only load messages on first mount or when conversationId changes
   useEffect(() => {
     if (
@@ -327,6 +401,31 @@ const ScreenWindows = ({ navigation, route }) => {
       isScrolledUp.current = false;
       loadMessages(1);
       loadedConversationId.current = conversationId;
+      // Load all messages from SQLite for this conversation
+
+      // Load pending messages from SQLite and add to UI
+      getPendingMessages((pendingMessages) => {
+        if (pendingMessages && pendingMessages.length > 0) {
+          setMessages(prev => deduplicateMessages([
+            ...pendingMessages.map(m => ({
+              ...m,
+              // Mark as optimistic/pending for UI
+              optimistic: true,
+              status: [{ status: 'pending' }],
+              // Parse content if it's a stringified object
+              content: (() => {
+                try {
+                  const parsed = JSON.parse(m.content);
+                  return parsed.content || m.content;
+                } catch {
+                  return m.content;
+                }
+              })(),
+            })),
+            ...prev
+          ]));
+        }
+      });
     } else if (!conversationId) {
       setMessages([]);
       setHasMore(true);
@@ -339,17 +438,7 @@ const ScreenWindows = ({ navigation, route }) => {
   }, [conversationId, isConnected, route?.params?.muted]);
   // Deduplicate messages by id after loading from backend
   useEffect(() => {
-    setMessages(prevMessages => {
-      const uniqueMessages = [];
-      const seenIds = new Set();
-      for (const msg of prevMessages) {
-        if (!seenIds.has(msg.id)) {
-          uniqueMessages.push(msg);
-          seenIds.add(msg.id);
-        }
-      }
-      return uniqueMessages;
-    });
+    setMessages(prevMessages => deduplicateMessages(prevMessages));
 
   }, [conversationId, isConnected]);
   // console.log(
@@ -358,7 +447,6 @@ const ScreenWindows = ({ navigation, route }) => {
   //   '\n',
   //   '\n',
   // );
-
   useEffect(() => {
     if (!lastMessage) return;
     if (lastMessage?.type === 'error') {
@@ -405,6 +493,7 @@ const ScreenWindows = ({ navigation, route }) => {
         tempId: msg?.tempId || undefined,
         created_at: msg?.created_at || new Date().toISOString(),
         updated_at: msg?.updated_at || new Date().toISOString(),
+        media_attachments: msg?.media_attachments || [],
       };
 
       if (msg?.is_system_message) {
@@ -448,6 +537,25 @@ const ScreenWindows = ({ navigation, route }) => {
       if (shouldAddMessage) {
         const normalizedNewMessage = normalizeMessage(msg);
 
+        // Save to local DB before updating UI
+        try {
+          // Save all fields from the server message in 'extra', and main columns for search/sort
+          const localMsg = {
+            id: msg?.id?.toString() || normalizedNewMessage.id,
+            conversation_id: msg?.conversation_id || msg?.conversation?.id || msgGroupId || msgConversationId || '',
+            sender_id: msg?.sender_id || msg?.sender?.id || '',
+            content: msg?.content || msg?.system_message || '',
+            created_at: msg?.created_at || normalizedNewMessage.created_at,
+            status: msg?.status || 'received',
+            is_group: typeof msg?.is_group === 'boolean' ? msg.is_group : !!isGroup,
+            extra: msg, // Store the entire server message object
+          };
+          insertMessage(localMsg);
+          console.log('Incoming message saved to local DB:', localMsg);
+        } catch (err) {
+          console.log('Error saving incoming message to local DB:', err);
+        }
+
         setMessages(prevMessages => {
           // Remove any optimistic message with the same tempId if present,
           const filtered = prevMessages.filter(m => {
@@ -474,7 +582,7 @@ const ScreenWindows = ({ navigation, route }) => {
             }
             return true;
           });
-          return [normalizedNewMessage, ...filtered];
+          return deduplicateMessages([normalizedNewMessage, ...filtered]);
         });
 
         if (navigation.isFocused()) {
@@ -510,15 +618,29 @@ const ScreenWindows = ({ navigation, route }) => {
     ) {
 
       if (action === 'receive_message_updated' && messageData) {
-        const uniqueMessages = [];
-        const seenIds = new Set();
-        for (const msg of prevMessages) {
-          if (!seenIds.has(msg.id)) {
-            uniqueMessages.push(msg);
-            seenIds.add(msg.id);
+        setMessages(prevMessages => {
+          // Replace the message with the updated one, matching IDs as strings
+          const updated = prevMessages.map(msg =>
+            String(msg.id) === String(messageData.id) ? { ...msg, ...messageData } : msg
+          );
+          // Deduplicate if needed
+          const uniqueMessages = [];
+          const seenIds = new Set();
+          for (const msg of updated) {
+            if (!seenIds.has(msg.id)) {
+              uniqueMessages.push(msg);
+              seenIds.add(msg.id);
+            }
           }
-        }
-        return uniqueMessages;
+          return uniqueMessages;
+        });
+        // Update SQLite with the edited message content
+        updateMessageContent(
+          messageData.id,
+          messageData.content,
+          messageData.updated_at || new Date().toISOString()
+        );
+        return;
       } else if (action === 'receive_messages_status_update' && messageData?.message_ids && messageData?.status) {
         setMessages(prevMessages =>
           prevMessages.map(msg =>
@@ -599,8 +721,18 @@ const ScreenWindows = ({ navigation, route }) => {
         setHasMore(true);
       }
       setMessages(prevMessages => {
+        // Remove optimistic messages that now have real counterparts from server
+        const nonOptimisticMessages = prevMessages.filter(msg => {
+          if (!msg.optimistic) return true;
+          // Check if a real message with same content exists in fetched messages
+          const hasRealMessage = fetchedMessages.some(
+            fetched => fetched.content === msg.content && !fetched.optimistic
+          );
+          return !hasRealMessage;
+        });
+
         const messageMap = new Map();
-        prevMessages.forEach(msg => messageMap.set(msg.id, msg));
+        nonOptimisticMessages.forEach(msg => messageMap.set(msg.id, msg));
         fetchedMessages.forEach(msg => messageMap.set(msg.id, msg));
         return Array.from(messageMap.values()).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       });
@@ -626,6 +758,25 @@ const ScreenWindows = ({ navigation, route }) => {
         setMessages(prevMessages => {
           const exists = prevMessages.some(m => m.id === normalizedNewMessage.id);
           if (exists) return prevMessages;
+
+          // Check if this is our own message (replacing an optimistic message)
+          const isOwnMessage = normalizedNewMessage.isSender ||
+            String(normalizedNewMessage.senderId) === String(currentUser?.id);
+
+          if (isOwnMessage) {
+            // Find and replace the optimistic message with matching content
+            const optimisticIndex = prevMessages.findIndex(
+              m => m.optimistic && m.content === normalizedNewMessage.content
+            );
+
+            if (optimisticIndex !== -1) {
+              // Replace optimistic message with real message (which has real ID)
+              const newMessages = [...prevMessages];
+              newMessages[optimisticIndex] = normalizedNewMessage;
+              return newMessages;
+            }
+          }
+
           return [normalizedNewMessage, ...prevMessages];
         });
       }
@@ -657,10 +808,12 @@ const ScreenWindows = ({ navigation, route }) => {
       ) {
         setConversations(lastMessage?.data?.conversation_id);
         setPage(1);
-        // Don't clear messages - preserve optimistic messages until real message arrives
-        // The optimistic message will be replaced when receive_new_message is received
         setHasMore(true);
         isScrolledUp.current = false;
+        loadMessages(1);
+      } else {
+        // For existing chats, also reload to get real message with correct ID
+        // This ensures optimistic message is replaced with server message
         loadMessages(1);
       }
       return;
@@ -900,6 +1053,17 @@ const ScreenWindows = ({ navigation, route }) => {
     );
   };
 
+  // Callback to update replies_count for a message
+  const handleThreadReplyCountChange = (threadMessageId, newCount) => {
+    setMessages(prevMessages =>
+      prevMessages.map(msg =>
+        String(msg.id) === String(threadMessageId)
+          ? { ...msg, replies_count: newCount }
+          : msg
+      )
+    );
+  };
+
   const renderMessageItem = useCallback(
     ({ item }) => {
       if (item.type === 'date-separator') {
@@ -915,20 +1079,20 @@ const ScreenWindows = ({ navigation, route }) => {
         messageStyle = [styles.messageWrapper, styles.pinnedMessage];
       }
       if (isSelected) {
-        messageStyle = [messageStyle, { backgroundColor: '#fff4e2ff', borderRadius: 12 }];
+        messageStyle = [messageStyle, { backgroundColor: '#FC8C4D26', borderRadius: 12 }];
       }
       const handleMessagePress = () => {
         // Only allow tap selection when already in selection mode
         if (selectedMessages.length === 0) return;
-        
+
         // Always hide reaction picker when tapping to select/deselect
         setReactionPickerState({ visible: false, message: null, positionY: 0 });
-        
+
         setSelectedMessages(prev => {
           if (!prev || prev.length === 0) return prev;
-          
+
           const isAlreadySelected = prev.some(m => m && m.id === item.id);
-          
+
           if (isAlreadySelected) {
             // Deselecting - if last item, exit selection mode
             return prev.filter(m => m && m.id !== item.id);
@@ -940,7 +1104,7 @@ const ScreenWindows = ({ navigation, route }) => {
         setReplyCheck(false);
         setSelectedMessageStatus(item?.status);
       };
-      
+
       const handleMessageLongPress = (e) => {
         if (selectedMessages.length === 0) {
           // First selection - show reaction picker
@@ -966,7 +1130,7 @@ const ScreenWindows = ({ navigation, route }) => {
         setReplyCheck(false);
         setSelectedMessageStatus(item?.status);
       };
-      
+
       return (
         <Pressable
           onLongPress={handleMessageLongPress}
@@ -983,6 +1147,7 @@ const ScreenWindows = ({ navigation, route }) => {
             navigation={navigation}
             currentUser={currentUser}
             pinnedMessage={pinnedMessage}
+            onThreadReplyCountChange={handleThreadReplyCountChange}
           />
         </Pressable>
       );
@@ -1066,6 +1231,7 @@ const ScreenWindows = ({ navigation, route }) => {
         tempId: tempId,
       };
 
+
       // Utility to clear selection and hide event header
       const clearSelection = () => {
         setSelectedMessages([]);
@@ -1076,6 +1242,25 @@ const ScreenWindows = ({ navigation, route }) => {
           positionY: 0,
         });
       };
+
+      // Save to local DB before sending
+      try {
+        // Save all fields from the server message in 'extra', and main columns for search/sort
+        const localMsg = {
+          id: optimisticMessage.id,
+          conversation_id: route?.params?.conversationId || route?.params?.GroupId || '',
+          sender_id: currentUser?.id || '',
+          content: JSON.stringify(data), // Save the full payload for resend
+          created_at: optimisticMessage.created_at,
+          status: isConnected ? 'local' : 'pending',
+          is_group: !!route?.params?.isGroup,
+          extra: optimisticMessage,
+        };
+        insertMessage(localMsg);
+        console.log('Message saved to local DB:', localMsg);
+      } catch (err) {
+        console.log('Error saving message to local DB:', err);
+      }
 
       if (ReplyCheck) {
         const payload = {
@@ -1132,11 +1317,6 @@ const ScreenWindows = ({ navigation, route }) => {
         }
 
         sendMessage(messageObject);
-
-        // For new chats, the conversation_id will be provided in "Message sent" response
-        // For existing chats, the optimistic message is already visible and real message
-        // will arrive via receive_new_message WebSocket event (which replaces the optimistic one)
-        // No need to call loadMessages here - it causes duplicate messages
         setNewMessage(true);
       }
     },
@@ -1275,6 +1455,7 @@ const ScreenWindows = ({ navigation, route }) => {
         }
       })
     );
+    setSelectedMessages([]);
     setSelectedMessage(null);
     setSelectedMessageStatus([]);
   };
@@ -1335,7 +1516,7 @@ const ScreenWindows = ({ navigation, route }) => {
       {renderToastMessage}
       {/* Multi-select toolbar */}
       {selectedMessages?.length > 1 && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3E0', padding: 10, zIndex: 100 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FC8C4D26', padding: 10, zIndex: 100 }}>
           <CustomText style={{ flex: 1, color: '#FF8C00', fontFamily: fonts.PoppinsSemiBold }}>{selectedMessages.length} selected</CustomText>
           <Pressable onPress={handleDeleteSelectedMessages} style={{ marginHorizontal: 10 }}>
             <CustomText style={{ color: 'red', fontFamily: fonts.PoppinsSemiBold }}>Delete</CustomText>
@@ -1354,6 +1535,8 @@ const ScreenWindows = ({ navigation, route }) => {
         isGroup={route?.params?.isGroup}
         GroupId={route?.params?.GroupId}
         selectedMessageStatus={selectedMessageStatus}
+        selectedmsg={selectedMessages}
+        setSelectedMessageStatus={setSelectedMessages}
         setSelectedMessage={setSelectedMessage}
         handleDeleteMessage={handleDeleteMessage}
         setReactionPickerState={setReactionPickerState}
@@ -1493,6 +1676,7 @@ const ScreenWindows = ({ navigation, route }) => {
               setEditmessagestatus={setEditmessagestatus}
               editmessagestatus={Editmessagestatus}
               onEditMessage={handleEditMessage}
+              onMediaSent={msg => setMessages(prev => [msg, ...prev])}
             />
             {/* </View> */}
 
@@ -1635,8 +1819,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: Platform.OS === 'ios' ? 20 : 16,
-    // When inverted, justifyContent: 'flex-start' means content starts from the bottom
-    // justifyContent: 'flex-end', // Use flex-end for inverted list to push content to bottom
   },
   loader: {
     marginVertical: 10,

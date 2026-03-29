@@ -31,7 +31,7 @@ const ScreenCircle = () => {
         <View style={styles.headerRight} />
       </View>
 
-      <TouchableOpacity style={styles.comingSoonContainer} onPress={() => setProfileModalVisible(true)}>
+      <TouchableOpacity style={styles.comingSoonContainer}>
         <CustomText style={styles.comingSoonText}>Coming Soon</CustomText>
         <CustomText style={styles.comingSoonSubtext}>We're working on something amazing!</CustomText>
       </TouchableOpacity>

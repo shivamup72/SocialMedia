@@ -38,9 +38,10 @@ import VideoCallingSvgIcon from '../../../assets/svg/videoCallingSvgIcon';
 import { useWebRTC } from '../../../Api/context/WebRTCProvider';
 import PinSvg from '../../../assets/svg/PinSvg';
 import UnStarSvg from '../../../assets/svg/Unstar_off_outline';
-import { RfH } from '../../../utils/helper';
+import { RfH, RfW } from '../../../utils/helper';
 import CustomBottomSheet from '../../../components/CustomBottomSheet/CustomBottomSheet';
 import CustomText from '../../../utils/CustomText';
+import AsyncStorage1 from '../../../Api/config/AsyncStorage';
 
 const Windowsheader = ({
   navigation,
@@ -57,6 +58,7 @@ const Windowsheader = ({
   selectedMessage,
   handleCopyMessage,
   conversationId,
+  selectedmsg,
   setEditmessagestatus,
   loadMessages,
   handleAllDeleteMessage,
@@ -66,6 +68,7 @@ const Windowsheader = ({
   selectedMessages,
   cancelMultiSelectMode,
   handlePinCreateion,
+  setSelectedMessageStatus
 }) => {
   const ProfileImage = require('../../../assets/Png/ProfileIcon.png');
   const [isMenuVisible, setMenuVisible] = useState(false);
@@ -92,6 +95,10 @@ const Windowsheader = ({
   ];
   const MoreItems = ['Copy'];
   // console.log(data, "header msg data");
+  // console.log(data, "here getting all data");
+  console.log(selectedMessageStatus, "selectedMessageStatus jnjnjnj");
+  console.log(conversationId, "get conversationIdjjbnjjb");
+
 
   const requestCallPermissions = async (isVideoCall = false) => {
     if (Platform.OS === 'android') {
@@ -340,22 +347,28 @@ const Windowsheader = ({
   // console.log('data -=-=-=------>', data, '\n', '\n');
 
   const handleaudioCall = async () => {
-    // const hasPermissions = await requestCallPermissions(false);
-    // if (hasPermissions) {
-    //   console.log('[Call] Initiating audio call to:', GroupId);
-    //   initiateCall(GroupId, false);
-    //   navigation.navigate('CallScreen', { type: 'audio', conversationId: GroupId });
-    // } else {
-    //   console.log('[Call] Audio call permissions denied.');
-    // }
-    console.log('audio call feature is not implemented yet');
+    const hasPermissions = await requestCallPermissions(false);
+    if (hasPermissions) {
+      console.log('[Call] Initiating audio call to:', GroupId);
+      initiateCall(GroupId, false, conversationId);
+      await AsyncStorage1.setItem('conversationId', conversationId);
+      navigation.navigate('CallScreen', {
+        type: 'audio',
+        GroupId: GroupId,
+        conversationId: conversationId,
+        name: data?.name || name || '',
+        avatar: data?.avatar || '',
+      });
+    } else {
+      console.log('[Call] Audio call permissions denied.');
+    }
   };
 
   const handlevideoCall = async () => {
     // const hasPermissions = await requestCallPermissions(true);
     // if (hasPermissions) {
     //   console.log('[Call] Initiating video call to:', GroupId);
-    //   initiateCall(GroupId, true);
+    //   initiateCall(GroupId, true, conversationId);
     //   navigation.navigate('CallScreen', { type: 'video', conversationId: GroupId });
     // } else {
     //   console.log('[Call] Video call permissions denied.');
@@ -503,6 +516,13 @@ const Windowsheader = ({
             ) : (
               <TouchableOpacity
                 onPress={() => {
+                  // First click: clear selection if any, do not navigate
+                  if (selectedmsg && selectedmsg.length > 0 && setSelectedMessageStatus) {
+                    setSelectedMessageStatus([]);
+                    setSelectedMessage && setSelectedMessage(null);
+                    return;
+                  }
+                  // Second click: perform navigation
                   if (
                     data?.navigatetype === 'privatenavigate' ||
                     data?.navigatetype === 'groupnavigate'
@@ -518,7 +538,8 @@ const Windowsheader = ({
                 style={{
                   paddingRight: 10,
                   paddingVertical: 5,
-                }}>
+                }}
+              >
                 <BackArrowSvg width="16" height="16" />
               </TouchableOpacity>
             )}
@@ -528,40 +549,43 @@ const Windowsheader = ({
               </CustomText>
             ) : (
               <>
-                <View style={styles.profileContainer}>
-                  <Avatar
-                    avatarUri={data?.avatar}
-                    size={40}
-                    borderRadius={30}
-                    fontSize={16}
-                    name={
-                      data?.chat_name?.trim() === '' ? data?.email : data?.name
-                    }
-                    email={data?.email}
-                  />
-                </View>
                 <Pressable
                   style={styles.ProfileDetails}
                   onPress={handleViewDetailsNavigations}>
-                  <CustomText
-                    allowFontScaling={false}
-                    numberOfLines={1}
-                    style={{
-                      color: DarkColor,
-                      fontSize: 12,
-                      fontFamily: fonts.PoppinsMedium,
-                    }}
-                  >
-                    {(
-                      ((typeof name === 'string' && name.trim() === '') ? data?.email : name) || ''
-                    ).length > 20
-                      ? (
-                        ((typeof name === 'string' && name.trim() === '') ? data?.email : name)
-                      ).slice(0, 20) + '...'
-                      : ((typeof name === 'string' && name.trim() === '') ? data?.email : name)
-                    }
-                  </CustomText>
+                  <View style={styles.profileContainer}>
+                    <Avatar
+                      avatarUri={data?.avatar}
+                      size={40}
+                      borderRadius={30}
+                      fontSize={16}
+                      name={
+                        data?.chat_name?.trim() === '' ? data?.email : data?.name
+                      }
+                      email={data?.email}
+                    />
+                  </View>
+                  <View style={{ justifyContent: 'center' }}>
+                    <CustomText
+                      allowFontScaling={false}
+                      numberOfLines={1}
+                      style={{
+                        color: DarkColor,
+                        fontSize: 12,
+                        fontFamily: fonts.PoppinsMedium,
+                        left: RfW(6)
+                      }}
+                    >
+                      {(
+                        ((typeof name === 'string' && name.trim() === '') ? data?.email : name) || ''
+                      ).length > 20
+                        ? (
+                          ((typeof name === 'string' && name.trim() === '') ? data?.email : name)
+                        ).slice(0, 20) + '...'
+                        : ((typeof name === 'string' && name.trim() === '') ? data?.email : name)
+                      }
+                    </CustomText>
 
+                  </View>
                 </Pressable>
               </>
             )}
@@ -593,7 +617,8 @@ const Windowsheader = ({
 
           {renderFilterMenu()}
         </>
-      )}
+      )
+      }
 
       <ModalsComponents
         visible={isModalVisible}
@@ -628,7 +653,7 @@ const Windowsheader = ({
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={[styles.deleteModalDeleteButton, { paddingVertical: RfH(24) }]}
+                style={[styles.deleteModalCancelButton, { marginVertical: RfH(16), width: '52%' }]}
                 onPress={() => {
                   setDeleteMeetingModalVisible(false);
                   handleDeleteConfirmedModal('for_me');
@@ -637,7 +662,7 @@ const Windowsheader = ({
                 <CustomText style={styles.deleteModalDeleteText}>Delete for me</CustomText>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.deleteModalDeleteButton}
+                style={[styles.deleteModalCancelButton, { width: '36%', }]}
                 onPress={() => {
                   setDeleteMeetingModalVisible(false);
                 }}
@@ -689,7 +714,7 @@ const Windowsheader = ({
           </View>
         </View>
       </CustomBottomSheet>
-    </View>
+    </View >
   );
 };
 
@@ -707,14 +732,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: RfH(20),
-    width: 280,
+    width: '80%',
     // alignItems: 'center',
   },
   deleteModalTitle: {
-    fontSize: RfH(14),
+    fontSize: RfH(16),
     fontFamily: fonts.PoppinsRegular,
     color: DarkColor80,
     marginBottom: 12,
+    paddingVertical: RfH(8)
   },
   deleteModalMessage: {
     fontSize: RfH(14),
@@ -736,11 +762,21 @@ const styles = StyleSheet.create({
     // backgroundColor: mainOrange25,
     // alignItems: 'center',
     // alignSelf: 'flex-end'
+    borderWidth: 0.4,
+    borderColor: mainOrangeColor,
+    // paddingVertical: RfH(8),
+    height: RfH(40),
+    paddingHorizontal: RfH(16),
+    borderRadius: 20,
+    alignItems: 'center',
+    width: '68%',
+    alignSelf: 'flex-end',
+    justifyContent: 'center',
   },
   deleteModalCancelText: {
     color: mainOrangeColor,
     fontFamily: fonts.PoppinsMedium,
-    alignSelf: 'flex-end',
+    // alignSelf: 'flex-end',
     fontSize: RfH(14)
 
   },
@@ -756,7 +792,7 @@ const styles = StyleSheet.create({
   deleteModalDeleteText: {
     color: mainOrangeColor,
     fontFamily: fonts.PoppinsMedium,
-    alignSelf: 'flex-end',
+    // alignSelf: 'flex-end',
     fontSize: RfH(14)
   },
   selectionInfo: {
@@ -795,9 +831,9 @@ const styles = StyleSheet.create({
     borderRadius: 25,
   },
   ProfileDetails: {
-    flexDirection: 'column',
+    flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'flex-start',
+    // alignItems: 'flex-start',
     marginLeft: 10,
     paddingVertical: 10,
   },

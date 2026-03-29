@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import 'react-native-gesture-handler';
 import { NavigationContainer } from '@react-navigation/native';
 import React, { useEffect, useRef, useState } from 'react';
@@ -13,15 +14,12 @@ import { SettingsProvider } from './src/Api/context/SettingsContext';
 import CallListener from './src/components/CallListener';
 import StackNavigation from './src/navigation/StackNavigation';
 import { AppState, Platform } from 'react-native';
+import messaging from '@react-native-firebase/messaging';
 import notifee, { EventType } from '@notifee/react-native';
 import FormData from 'form-data';
 import AsyncStorage1 from './src/Api/config/AsyncStorage';
 import { PatchFCMTokenApi } from './src/Api/config/HomeApi';
 import NotificationPermissionModal from './src/OnBoardingFlow/NotificationPermissionModal';
-import { setupNotificationHandlers } from './src/utils/notificationManager';
-
-// Only import Firebase messaging on Android
-const messaging = Platform.OS === 'android' ? require('@react-native-firebase/messaging').default : null;
 
 
 function App() {
@@ -49,6 +47,7 @@ function App() {
 }
 
 function AppContent() {
+  console.log("AppContent Rendered");
   const { initiateCall, callState, endCall } = useWebRTC();
   const { sendMessage } = useWebSocket();
   const appState = useRef(AppState.currentState);
@@ -80,13 +79,6 @@ function AppContent() {
 
   const setupCloudMessaging = async () => {
     console.log('[Notification] setupCloudMessaging called');
-    
-    // Skip Firebase on iOS for now
-    if (Platform.OS === 'ios' || !messaging) {
-      console.log('[Notification] Skipping Firebase messaging on iOS');
-      return;
-    }
-    
     try {
       const authStatus = await messaging().requestPermission();
       console.log('[Notification] Permission request status:', authStatus);
@@ -109,11 +101,6 @@ function AppContent() {
   };
 
   const getFCMToken = async () => {
-    // Skip Firebase on iOS for now
-    if (Platform.OS === 'ios' || !messaging) {
-      return;
-    }
-    
     try {
       const fcmToken = await messaging().getToken();
       if (fcmToken) {
@@ -121,23 +108,36 @@ function AppContent() {
         const formData = new FormData();
         formData.append('token', fcmToken);
         formData.append('device_type', Platform.OS);
-        console.log('[Notification] Sending FCM token to backend:', fcmToken);
+        console.log('[Notification] Sending FCM token to backend:', formData);
         const res = await PatchFCMTokenApi(formData);
         console.log('[Notification] Backend FCM token response:', res);
       } else {
         console.log('[Notification] Failed to get FCM token');
       }
     } catch (error) {
-      // console.error('Error getting FCM token:', error);
+      console.error('Error getting FCM token:', error);
     }
   };
 
+  // useEffect(() => {
+  //   console.log("E2EE setup started");
+  //   const test = async () => {
+  //     try {
+  //       await setupUserKeys();
+  //       console.log("setupUserKeys finished");
+  //       const pk = await AsyncStorage1.getItem("publicKey");
+  //       const sk = await AsyncStorage1.getItem("secretKey");
+
+  //       console.log("publicKey:", pk);
+  //       console.log("secretKey:", sk);
+  //     } catch (e) {
+  //       console.log("E2EE ERROR:", e);
+  //     }
+  //   };
+  //   test();
+  // }, []);
+
   useEffect(() => {
-    // Skip Firebase listeners on iOS for now
-    if (Platform.OS === 'ios' || !messaging) {
-      return;
-    }
-    
     const unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
       console.log('[Notification] Foreground FCM message:', JSON.stringify(remoteMessage));
       if (remoteMessage && remoteMessage.data && (remoteMessage.data.type === 'message' || remoteMessage.data.action === 'receive_new_message')) {

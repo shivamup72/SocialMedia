@@ -12,9 +12,9 @@ import {
   Animated,
   TouchableOpacity,
   BackHandler,
+  AppState,
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import EmptyListComponents from '../components/EmptyListComponents';
 import {
   fonts,
   mainOrange50,
@@ -35,18 +35,25 @@ import Toast from '../Api/context/Toast';
 import { RfH, RfW } from '../utils/helper';
 import ScreenView from '../utils/ScreenView';
 import CustomText from '../utils/CustomText';
+import { registerDeviceEncryptionKey } from '../utils/E2EEWorkspaceComponent';
+import ChatConversationEmpty from '../components/ChatConversationEmpty';
 
 const ONBOARDING_SHOWN_KEY = 'chatlist_onboarding_shown';
 
-const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
+const ChatListScreen = ({ SearchValue, setHideTabBar, route }) => {
+  const flag = route?.params?.flag;
+  console.log('Flag:', flag);
+
   // Onboarding modal state
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingSkipped, setOnboardingSkipped] = useState(false);
 
   useEffect(() => {
     // Check if onboarding modal has been shown before
     const checkOnboarding = async () => {
       try {
         const value = await AsyncStorage.getItem(ONBOARDING_SHOWN_KEY);
+
         if (!value) {
           setShowOnboarding(true);
         }
@@ -81,11 +88,15 @@ const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
   const CreateGroupImage = require('../assets/ChatAssets/png/CreateGroupIcon.png');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [displayedData, setDisplayedData] = useState([]);
+  console.log(displayedData, "displayedData on chat list screen");
+
   const [conversations, setConversations] = useState([]);
   const [ModalVisiable, setModalVisiable] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [UnreadCounter, setUnreadCounter] = useState(0);
   const [expandedId, setExpandedId] = useState(null);
+  // State for avatar preview modal
+  const [previewAvatar, setPreviewAvatar] = useState(null);
 
 
   // Always get the latest unread conversation from all conversations, not just filtered
@@ -114,10 +125,24 @@ const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
   const { connect, isConnected, lastMessage, sendMessage } = useWebSocket();
   const isFocused = useIsFocused();
   const toastRef = useRef(null);
-  // Initialize WebSocket connection when component mounts
+
+  // Always connect socket immediately on mount and if not connected
   useEffect(() => {
     connect();
-  }, [connect]);
+  }, [connect, isConnected]);
+
+  // AppState logic to reconnect websocket on foreground
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'active' && !isConnected) {
+        connect();
+      }
+    };
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, [isConnected, connect]);
 
   const handleAllConversations = useCallback(
     (page = 1, loadMore = false) => {
@@ -236,12 +261,7 @@ const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
       }
       setIsLoading(false);
     } else if (lastMessage?.type === 'error') {
-      console.log('lastMessage error -=-=------>', JSON.stringify(lastMessage));
-      // toastRef.current.show({
-      //   type: 'error',
-      //   message: lastMessage?.message,
-      // });
-
+      // console.log('lastMessage error -=-=------>', JSON.stringify(lastMessage?.message));
       return;
     }
 
@@ -274,6 +294,12 @@ const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
 
   const handleFilterSelect = useCallback(filter => {
     setSelectedFilter(filter);
+  }, []);
+
+  // Here handlew E2EE Logic 
+
+  useEffect(() => {
+    registerDeviceEncryptionKey();
   }, []);
 
   const renderFilterItem = useCallback(
@@ -336,12 +362,26 @@ const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
   const renderChatItem = useCallback(
     ({ item }) => {
       const chatId = item?.conversation_id || item?.id;
+      const formatTime = (timestamp) => {
+        const date = new Date(timestamp);
+
+        return date.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true, // AM/PM ke liye
+        });
+      };
       return (
         <TouchableOpacity
           style={styles.chatItemContainer}
-          onPress={() => handleChatWindowsNavigation(item)}>
-          <View style={styles.avatarContainer}>
-            {/* {console.log('chat_name-=-=-=------>', item?.chat_name, '\n')} */}
+          onPress={() => handleChatWindowsNavigation(item)}
+          activeOpacity={0.8}
+        >
+          <TouchableOpacity
+            style={styles.avatarContainer}
+            onPress={() => setPreviewAvatar(item)}
+            activeOpacity={0.8}
+          >
             <Avatar
               avatarUri={item?.chat_avatar}
               name={item?.chat_name || item?.chat_email}
@@ -350,16 +390,24 @@ const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
               borderRadius={30}
               fontSize={18}
             />
-          </View>
+          </TouchableOpacity>
+
           <View style={styles.textContainer}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <CustomText style={styles.name}>
-                {expandedId === chatId
-                  ? (item?.chat_name?.trim() === ''
-                    ? item?.chat_email
-                    : item?.chat_name)
-                  : (
-                    ((item?.chat_name?.trim() === ''
+            {/* name + time */}
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <CustomText style={styles.name} numberOfLines={expandedId === chatId ? 2 : 1}>
+                  {expandedId === chatId
+                    ? item?.chat_name?.trim() === ''
+                      ? item?.chat_email
+                      : item?.chat_name
+                    : ((item?.chat_name?.trim() === ''
                       ? item?.chat_email
                       : item?.chat_name) || '').length > 26
                       ? (
@@ -367,57 +415,46 @@ const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
                           ? item?.chat_email
                           : item?.chat_name
                       ).slice(0, 26) + '...'
-                      : (
-                        item?.chat_name?.trim() === ''
-                          ? item?.chat_email
-                          : item?.chat_name
-                      )
-                  )
-                }
+                      : item?.chat_name?.trim() === ''
+                        ? item?.chat_email
+                        : item?.chat_name}
+                </CustomText>
+              </View>
 
-                {(
-                  ((item?.chat_name?.trim() === ''
-                    ? item?.chat_email
-                    : item?.chat_name) || '').length > 26
-                ) && (
-                    <CustomText
-                      onPress={() =>
-                        setExpandedId(prev => (prev === chatId ? null : chatId))
-                      }
-                      style={{
-                        color: '#007AFF',
-                        fontSize: 12,
-                      }}>
-                      {expandedId === chatId ? ' Less' : ' More'}
-                    </CustomText>
-                  )}
+              <CustomText
+                style={{ fontSize: 10, fontFamily: fonts.PoppinsRegular }}
+              >
+                {formatTime(item?.last_message?.timestamp)}
               </CustomText>
-
             </View>
-            <View style={{ flexDirection: 'row' }}>
+
+            {/* message */}
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <CustomText
                 allowFontScaling={false}
-                style={styles.message}
+                style={[styles.message, { flex: 1 }]}
                 numberOfLines={1}
-                ellipsizeMode="tail">
-                {item.is_group && (
+                ellipsizeMode="tail"
+              >
+                {item?.is_group && (
                   <CustomText allowFontScaling={false} style={styles.message}>
-                    {item.last_message?.sender?.name ||
-                      item.last_message?.sender?.email}{' '}
-                    :{' '}
+                    {item?.last_message?.sender?.name ||
+                      item?.last_message?.sender?.email}
+                    {': '}
                   </CustomText>
                 )}
-                {item.last_message?.content || 'No messages yet'}
+                {item?.last_message?.content || 'No messages yet'}
               </CustomText>
+
+              {item?.unread_count > 0 && (
+                <View style={styles.unreadBadge}>
+                  <CustomText allowFontScaling={false} style={styles.unreadText}>
+                    {item?.unread_count}
+                  </CustomText>
+                </View>
+              )}
             </View>
           </View>
-          {item.unread_count > 0 && (
-            <View style={styles.unreadBadge}>
-              <CustomText allowFontScaling={false} style={styles.unreadText}>
-                {item.unread_count}
-              </CustomText>
-            </View>
-          )}
         </TouchableOpacity>
       )
     },
@@ -446,6 +483,7 @@ const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
         onSkip={handleSkipOnboarding}
         onMainAction={handleOnboardingInvite}
         buttonText="Start Inviting your Crew"
+        showSkip={!onboardingSkipped}
       >
         <CustomText style={{ textAlign: 'center', marginBottom: 16, color: '#666', fontSize: 15 }}>
           Invite your friends, family, or colleagues to start chatting in your new hub!
@@ -493,9 +531,29 @@ const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
               {isLoading ? (
                 <CustomText style={{ color: DarkColor }}>Loading conversations...</CustomText>
               ) : (
-                <EmptyListComponents
+                <ChatConversationEmpty
                   text={
-                    isConnected ? 'No conversations yet' : 'Connecting to chat...'
+                    isConnected ? 'No chats yet' : 'Connecting to chat...'
+                  }
+                  subText={
+                    isConnected ? 'Start a new conversation to connect!' : ''
+                  }
+                  btnText={
+                    isConnected ? 'Start Inviting your Crew' : ''
+                  }
+                  button={
+                    isConnected
+                      ? {
+                        backgroundColor: '#FC8C4D',
+                        borderRadius: 8,
+                        paddingVertical: RfH(10),
+                        paddingHorizontal: RfW(24),
+                        marginBottom: RfH(8),
+                        width: RfW(260),
+                        alignItems: 'center',
+                        marginTop: RfH(10),
+                      }
+                      : null
                   }
                   type={1}
                 />
@@ -621,6 +679,43 @@ const ChatListScreen = ({ SearchValue, setHideTabBar }) => {
         )}
       </View>
       {/* <Toast ref={toastRef} /> */}
+      {/* Avatar Preview Modal (global, not per item) */}
+      {previewAvatar && (
+        <Modal
+          visible={!!previewAvatar}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPreviewAvatar(null)}
+        >
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setPreviewAvatar(null)}>
+            {previewAvatar.chat_avatar && typeof previewAvatar.chat_avatar === 'string' && previewAvatar.chat_avatar.trim() !== '' ? (
+              <Image
+                source={{ uri: previewAvatar.chat_avatar }}
+                style={{ width: '90%', height: '60%', resizeMode: 'contain', borderRadius: 16, }}
+              />
+            ) : (
+              <View style={{ width: 180, height: 180, borderRadius: 90, backgroundColor: '#FC8C4D', justifyContent: 'center', alignItems: 'center' }}>
+                <CustomText style={{ color: '#fff', fontSize: 64, fontWeight: 'bold', textAlign: 'center' }}>
+                  {(() => {
+                    let name = previewAvatar?.chat_name || previewAvatar?.chat_email || '';
+                    if (name && typeof name === 'string' && name.trim().length > 0) {
+                      const parts = name.trim().split(' ');
+                      if (parts.length > 1) {
+                        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+                      }
+                      return name[0].toUpperCase();
+                    }
+                    if (previewAvatar?.chat_email && typeof previewAvatar.chat_email === 'string' && previewAvatar.chat_email.trim().length > 0) {
+                      return previewAvatar.chat_email[0].toUpperCase();
+                    }
+                    return '?';
+                  })()}
+                </CustomText>
+              </View>
+            )}
+          </TouchableOpacity>
+        </Modal>
+      )}
     </ScreenView>
   );
 };

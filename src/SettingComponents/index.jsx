@@ -34,6 +34,7 @@ import { onSendError } from '@react-native-firebase/messaging';
 import CustomText from '../utils/CustomText';
 import UserManagementflow from './UserManagement.tsx';
 import AdminPrivacy from './AdminPrivecy';
+import { RfH, RfW } from '../utils/helper.js';
 
 const RenderListHeader = React.memo(
   ({
@@ -46,9 +47,12 @@ const RenderListHeader = React.memo(
     openImagePickerMenu,
     setHubName,
     handleHUbChanges,
+    data,
     idHub,
   }) => {
     const ArrowLogo = require('../assets/LoginAssets/png/ArrowLogo.png');
+    console.log(data, '---data in render list header----');
+
     return (
       <View style={styles.profileSection}>
         <View style={styles.profileImageContainer}>
@@ -116,7 +120,7 @@ const RenderListHeader = React.memo(
             {EditStatus ? (
               <View style={{ flexDirection: 'column' }}>
                 <TouchableOpacity
-                  style={{ marginLeft: 5, marginBottom: 10 }}
+                  style={{ marginLeft: RfW(5), marginBottom: RfH(10) }}
                   onPress={() => setEditStatus(false)}>
                   <CloseSvg width="20" height="20" />
                 </TouchableOpacity>
@@ -126,6 +130,7 @@ const RenderListHeader = React.memo(
               </View>
             ) : (
               <TouchableOpacity
+                style={{ right: RfW(10) }}
                 onPress={() => {
                   setEditStatus(true);
                 }}>
@@ -140,11 +145,11 @@ const RenderListHeader = React.memo(
 );
 
 const SettingComponents = ({ navigation, route }) => {
-  console.log(route?.params, '---route.params----');
+  console.log(JSON.stringify(route?.params), '---route.params----');
 
   const profileImageData = require('../assets/Png/ProfileIcon2.png');
   const [profileImage, setProfileImage] = useState(route?.params?.logo);
-
+  const [data, setData] = useState(route?.params?.data);
   const [EditStatus, setEditStatus] = useState(false);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [hubName, setHubName] = useState(route?.params?.hubName);
@@ -216,6 +221,7 @@ const SettingComponents = ({ navigation, route }) => {
 
   ];
 
+
   const handleHUbChanges = async () => {
     const formData = new FormData();
     formData.append('name', hubName);
@@ -274,6 +280,7 @@ const SettingComponents = ({ navigation, route }) => {
             setHubName={setHubName}
             handleHUbChanges={handleHUbChanges}
             idHub={route?.params?.id}
+            data={setData}
           />
         }
         contentContainerStyle={styles.contentContainer}
@@ -332,11 +339,11 @@ const styles = StyleSheet.create({
   },
   hubNameSection: {
     flexDirection: 'row',
-    marginTop: 20,
+    marginTop: RfH(10),
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20, // Add some space before the next component
+    marginBottom: RfH(6), // Add some space before the next component
   },
   hubNameInput: {
     color: DarkColor,

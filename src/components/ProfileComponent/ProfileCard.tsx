@@ -20,13 +20,17 @@ import { normalize, RfH, RfW } from '../../utils/helper';
 import CustomText from '../../utils/CustomText';
 import {
     DarkColor,
+    DarkColor50,
     DarkColor80,
     fonts,
     mainOrange50,
     mainOrangeColor,
     mainWhiteColor,
 } from '../../utils/style/fonts';
+
 import AsyncStorage1 from '../../Api/config/AsyncStorage';
+import { GetUserIdListingApi } from '../../Api/config/HomeApi';
+import EventEmitter from '../../utils/EventEmitter';
 
 
 /* ---------------- TYPES ---------------- */
@@ -50,7 +54,7 @@ const fields: Array<[string, keyof User]> = [
     ['Date of Joining', 'doj'],
     ['Blood Group', 'blood_group'],
     ['Emergency Cont', 'emergency_contact'],
-    ['Line Manager', 'line_manager'],
+    ['Reporting Manager', 'reporting_manager_name'],
 ];
 
 const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => void }) => {
@@ -59,10 +63,14 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
         'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'
     ];
     const [showBloodDropdown, setShowBloodDropdown] = useState(false);
+    const [workspaceRole, setWorkspaceRole] = useState<string | null>(null);
+
     // Validation state for required fields
     const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
 
     const [myRole, setMyRole] = useState<string | null>(null);
+    console.log(myRole, "myRole in profile card");
+
 
     // Regex for 10-digit mobile numbers starting with 6-9
     const mobileRegex = /^[6-9][0-9]{9}$/;
@@ -85,6 +93,11 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
     const [currentDateField, setCurrentDateField] = useState<null | 'dob' | 'doj'>(null);
     const [userId, setUserId] = useState<number | null>(null);
     const [userData, setUserData] = useState<User>({});
+    const [showProfilePreview, setShowProfilePreview] = useState(false);
+
+    console.log(userData, "get userData");
+
+
     const [formData, setFormData] = useState<User>({});
     const [profileImg, setProfileImg] = useState<any>(
         require('../../assets/Png/ProfileIcon.png'),
@@ -115,13 +128,18 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
             });
             if (!response.ok) throw new Error('Failed to fetch user data');
             const result = await response.json();
+            console.log(result, "result from fetch user data API in profile card");
             // If API returns { success, message, data }, use data
             const data = result.data ? result.data : result;
             setUserData(data);
             setFormData({ ...data, profile_picture: null });
             if (data?.profile_picture) {
-                // setProfileImg({ uri: data.profile_picture });
-                setProfileImg(require('../../assets/Png/ProfileIcon.png'));
+                // If profile_picture is a string (URL), wrap it in { uri: ... }
+                if (typeof data.profile_picture === 'string') {
+                    setProfileImg({ uri: data.profile_picture });
+                } else {
+                    setProfileImg(data.profile_picture);
+                }
             } else {
                 setProfileImg(require('../../assets/Png/ProfileIcon.png'));
             }
@@ -242,10 +260,13 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                 },
                 body: form,
             });
+            console.log(formData, "formData from update profile API");
             if (!response.ok) throw new Error('Failed to update profile');
             ToastAndroid.show('Profile updated successfully', ToastAndroid.LONG);
             setEditable(false);
             fetchUserData();
+            // Emit event to notify other components
+            EventEmitter.emit('profileUpdated');
         } catch (error) {
             ToastAndroid.show('Failed to update profile', ToastAndroid.LONG);
         }
@@ -303,11 +324,44 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                         </>
                     )}
                     {/* Profile Image - centered and overlapping card */}
-                    <View style={{ alignItems: 'center', justifyContent: 'center', marginTop: RfH(-60), left: RfW(20) }}>
+                    <View style={{ alignItems: 'center', justifyContent: 'center', marginTop: RfH(-50), left: RfW(20) }}>
                         <View style={{ position: 'relative' }}>
-                            <TouchableOpacity style={styles.profileImgBorder} activeOpacity={1}>
-                                <Image source={profileImg} style={styles.profileImg} resizeMode='contain' />
+                            <TouchableOpacity style={styles.profileImgBorder} activeOpacity={1} onPress={() => setShowProfilePreview(true)}>
+                                {profileImg && profileImg !== require('../../assets/Png/ProfileIcon.png') ? (
+                                    <Image source={profileImg} style={styles.profileImg} resizeMode='contain' />
+                                ) : (
+                                    <View style={{
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        backgroundColor: mainWhiteColor,
+                                        height: RfH(100),
+                                        width: RfH(100),
+                                        borderRadius: RfH(50),
+                                        position: 'relative',
+                                        borderWidth: 2,
+                                        borderColor: mainOrangeColor,
+                                    }}>
+                                        <CustomText style={{ color: mainOrangeColor, fontSize: 26, fontFamily: fonts.PoppinsSemiBold }}>
+                                            {`${(userData.first_name?.[0] || '').toUpperCase()}${(userData.last_name?.[0] || '').toUpperCase()}`}
+                                        </CustomText>
+                                    </View>
+                                )}
                             </TouchableOpacity>
+                            {/* Image Preview Modal */}
+                            <Modal
+                                visible={!!showProfilePreview}
+                                transparent
+                                animationType="fade"
+                                onRequestClose={() => setShowProfilePreview(false)}
+                            >
+                                <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setShowProfilePreview(false)}>
+                                    <Image
+                                        source={profileImg}
+                                        style={{ width: '90%', height: '60%', resizeMode: 'center', borderRadius: 16, }}
+                                    />
+                                </TouchableOpacity>
+                            </Modal>
+                            {/* State for profile image preview modal */}
                             {/* Edit Icon Overlay (always visible if not editable) */}
                             {!editable && (
                                 <TouchableOpacity
@@ -340,7 +394,7 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                 </View>
 
                 {/* HEADER */}
-                <View style={{ marginTop: RfH(60) }}></View>
+                <View style={{ marginTop: RfH(40) }}></View>
 
                 <TouchableOpacity
                     style={styles.headerRow}
@@ -374,6 +428,7 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                                         <CustomText style={[styles.label, { bottom: RfH(8) }]}>First Name <CustomText style={{ color: 'red' }}>*</CustomText></CustomText>
                                         <TextInput
                                             value={formData.first_name || ''}
+                                            placeholder="Enter first name"
                                             onChangeText={t => {
                                                 handleChange('first_name', t.replace(/\s/g, ''));
                                                 if (!t.trim()) {
@@ -382,6 +437,7 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                                                     setValidationErrors(prev => ({ ...prev, first_name: '' }));
                                                 }
                                             }}
+                                            placeholderTextColor={DarkColor50}
                                             style={[styles.inputBox, { bottom: RfH(12), color: '#000' }]}
                                             onFocus={() => setHideTabBar && setHideTabBar(true)}
                                             onBlur={() => setHideTabBar && setHideTabBar(false)}
@@ -394,6 +450,7 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                                         <CustomText style={[styles.label, { bottom: RfH(8) }]}>Last Name <CustomText style={{ color: 'red' }}>*</CustomText></CustomText>
                                         <TextInput
                                             value={formData.last_name || ''}
+                                            placeholder="Enter last name"
                                             onChangeText={t => {
                                                 handleChange('last_name', t.replace(/\s/g, ''));
                                                 if (!t.trim()) {
@@ -403,6 +460,7 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                                                 }
                                             }}
                                             style={[styles.inputBox, { bottom: RfH(12), color: '#000' }]}
+                                            placeholderTextColor={DarkColor50}
                                             onFocus={() => setHideTabBar && setHideTabBar(true)}
                                             onBlur={() => setHideTabBar && setHideTabBar(false)}
                                             allowFontScaling={false}
@@ -435,12 +493,13 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                                                 onPress={() => setShowBloodDropdown(true)}
                                             >
                                                 <CustomText style={{ color: DarkColor, fontSize: normalize(12), fontFamily: fonts.PoppinsRegular }}>
-                                                    {formData.blood_group || 'Select Blood Group'}
+                                                    {formData.blood_group}
                                                 </CustomText>
-                                                <Image
+                                                {/* <Image
                                                     source={require('../../assets/Png/arrowdwon.webp')}
                                                     style={{ width: 16, height: 10, marginLeft: 8 }}
-                                                />
+                                                    tintColor={DarkColor80}
+                                                /> */}
                                             </TouchableOpacity>
                                             {/* Modal Dropdown */}
                                             <Modal
@@ -479,9 +538,9 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                                                     setCurrentDateField(key as 'dob' | 'doj');
                                                     setShowDatePicker(true);
                                                 }}>
-                                                <CustomText style={[styles.valueText, {}]}>
-                                                    {formData[key] ? dayjs(formData[key]).format('DD-MM-YYYY') : ''}
-                                                </CustomText>
+                                                {formData[key] ? <CustomText style={[styles.valueText, {}]}>
+                                                    {dayjs(formData[key]).format('DD-MM-YYYY')}
+                                                </CustomText> : key === 'dob' ? <CustomText style={{ color: DarkColor50, fontSize: 12 }}>Select birth date</CustomText> : <CustomText style={{ color: DarkColor50, fontSize: 12 }}>Select joining date</CustomText>}
                                             </TouchableOpacity>
                                             {showDatePicker && currentDateField === key && (
                                                 <DateTimePicker
@@ -505,6 +564,7 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                                         <>
                                             <TextInput
                                                 value={formData[key] as string}
+                                                placeholder={`Enter ${label.toLowerCase()}`}
                                                 keyboardType="number-pad"
                                                 maxLength={10}
                                                 style={[styles.inputBox, { bottom: RfH(12) }]}
@@ -528,6 +588,7 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                                                 onFocus={() => setHideTabBar && setHideTabBar(true)}
                                                 onBlur={() => setHideTabBar && setHideTabBar(false)}
                                                 allowFontScaling={false}
+                                                placeholderTextColor={DarkColor50}
                                             />
                                             {validationErrors[key] ? (
                                                 <CustomText style={{ color: 'red', fontSize: 11, bottom: RfH(10) }}>{validationErrors[key]}</CustomText>
@@ -536,18 +597,20 @@ const ProfileCard = ({ setHideTabBar }: { setHideTabBar?: (hide: boolean) => voi
                                     ) : editable ? (
                                         <TextInput
                                             value={formData[key] as string}
+                                            // placeholder={`Enter ${label.toLowerCase()}`}
                                             onChangeText={t => handleChange(key, t)}
                                             style={[styles.inputBox, { bottom: RfH(12) }]}
                                             onFocus={() => setHideTabBar && setHideTabBar(true)}
                                             onBlur={() => setHideTabBar && setHideTabBar(false)}
+                                            placeholderTextColor={DarkColor50}
                                         />
                                     ) : (
                                         <CustomText style={[styles.valueText, {}]}>
                                             {key === 'blood_group'
-                                                ? userData.blood_group || 'N/A'
+                                                ? userData.blood_group || '-'
                                                 : (key === 'dob' || key === 'doj') && userData[key]
                                                     ? dayjs(userData[key]).format('DD-MM-YYYY')
-                                                    : userData[key] || 'N/A'}
+                                                    : (userData[key] !== undefined && userData[key] !== null && userData[key] !== '' ? userData[key] : '-')}
                                         </CustomText>
                                     )}
                                 </View>
@@ -602,12 +665,16 @@ const styles = StyleSheet.create({
         marginTop: RfH(60),
     },
     profileImgBorder: {
-        width: RfW(116),
-        height: RfH(116),
-        borderRadius: RfH(58),
+        justifyContent: 'center',
+        alignItems: 'center',
+        // backgroundColor: '#FC8C4D',
+        height: RfH(100),
+        width: RfH(100),
+        borderRadius: RfH(50),
+        position: 'relative',
         borderWidth: 2,
-        borderColor: '#FF7F50',
-        overflow: 'hidden',
+        borderColor: mainOrangeColor,
+        // overflow: 'hidden',
     },
     hubadminsty: {
         fontSize: normalize(10),
@@ -642,7 +709,7 @@ const styles = StyleSheet.create({
     profileImg: {
         width: '100%',
         height: '100%',
-        borderRadius: RfH(58),
+        borderRadius: 50,
     },
 
     editIcon: {
@@ -676,7 +743,7 @@ const styles = StyleSheet.create({
 
     label: {
         fontFamily: fonts.PoppinsMedium,
-        color: DarkColor80,
+        color: DarkColor,
         fontSize: normalize(12),
         lineHeight: normalize(16),
         marginTop: RfH(4),
@@ -698,11 +765,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: RfH(8),
         fontSize: normalize(12),
         justifyContent: 'center',
-        height: RfH(40),
+        height: RfH(30),
         color: DarkColor
     },
     valueRow: {
-        paddingHorizontal: 10,
+        paddingHorizontal: RfW(10),
         gap: 8,
     },
     profileImageWrapper: {

@@ -16,31 +16,35 @@ export const LOTTIE_EMOJIS = [
 
 const { width } = Dimensions.get('window');
 
-const LottieEmojiPicker = ({ visible, onSelect, onClose }) => {
+const LottieEmojiPicker = ({ visible, onSelect, onClose, children }) => {
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={styles.overlay}>
                 <TouchableOpacity style={styles.overlayTouchable} activeOpacity={1} onPress={onClose} />
                 <View style={styles.bottomSheetContainer}>
-                    <FlatList
-                        data={LOTTIE_EMOJIS}
-                        numColumns={5}
-                        keyExtractor={item => item.key}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity
-                                style={styles.emojiButton}
-                                onPress={() => onSelect(item)}
-                            >
-                                <LottieView
-                                    source={item.source}
-                                    autoPlay
-                                    loop
-                                    style={styles.lottieEmoji}
-                                />
-                            </TouchableOpacity>
-                        )}
-                        contentContainerStyle={{ paddingBottom: 24, paddingTop: 12 }}
-                    />
+                    {children ? (
+                        children
+                    ) : (
+                        <FlatList
+                            data={LOTTIE_EMOJIS}
+                            numColumns={5}
+                            keyExtractor={item => item.key}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity
+                                    style={styles.emojiButton}
+                                    onPress={() => onSelect(item)}
+                                >
+                                    <LottieView
+                                        source={item.source}
+                                        autoPlay
+                                        loop
+                                        style={styles.lottieEmoji}
+                                    />
+                                </TouchableOpacity>
+                            )}
+                            contentContainerStyle={{ paddingBottom: 24, paddingTop: 12 }}
+                        />
+                    )}
                 </View>
             </View>
         </Modal>

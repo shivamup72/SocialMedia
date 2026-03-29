@@ -18,7 +18,7 @@ import ScreenView from '../../../utils/ScreenView';
 import CustomText from '../../../utils/CustomText';
 
 const StartComponents = ({ navigation, route }) => {
-  console.log('StarComponents route params:', route?.params);
+  console.log('StarComponents route params kkkj:', route?.params);
   // Log to get all conversations on mount
   useEffect(() => {
     const payload = {
@@ -38,10 +38,13 @@ const StartComponents = ({ navigation, route }) => {
   const PAGE_SIZE = 15;
   const toastRef = useRef(null);
 
-  console.log(
-    'Total messages:',
-    lastMessage?.data?.[0]?.messages?.length
-  );
+  // console.log(
+  //   'Total messages:',
+  //   lastMessage?.data?.[0]?.messages?.length
+  // );
+
+  console.log(messages, "Messages in star after processing WebSocket response");
+
 
   useEffect(() => {
     const fetData = async () => {
@@ -56,11 +59,15 @@ const StartComponents = ({ navigation, route }) => {
   }, []);
 
   const handleConversationStarmsg = () => {
+    const isGroup = route?.params?.data?.isGroup;
     const payload = {
       action: 'get_starred_messages',
       conversation_id: route?.params?.conversationId,
-      is_group: route?.params?.data?.isGroup,
+      is_group: isGroup,
     };
+    if (isGroup && route?.params?.data?.GroupId) {
+      payload.group_id = route?.params?.data?.GroupId;
+    }
     console.log('payload after star -=-=-=------>', payload);
     sendMessage(payload);
   };
@@ -83,7 +90,7 @@ const StartComponents = ({ navigation, route }) => {
     '\n',
     '\n',
   );
-  console.log(JSON.stringify('Full lastMessage object:'), lastMessage);
+  console.log(JSON.stringify('Full lastMessage object:'), JSON.stringify?.(lastMessage));
 
   const FetchData = () => {
     try {
@@ -103,8 +110,11 @@ const StartComponents = ({ navigation, route }) => {
         return;
       }
 
+      // ⭐️ Filter only starred messages
+      const starredMessages = messagesData.filter(msg => msg && msg.starred);
+
       const timestamp = Date.now();
-      const newMessages = messagesData
+      const newMessages = starredMessages
         .map((msg, index) => {
           if (!msg) return null;
           return {
@@ -208,8 +218,11 @@ const StartComponents = ({ navigation, route }) => {
         message_ids: item.id,
       };
       console.log('Star payload: -=-=-=-=-=-------->', payload, '\n', '\n');
-
       sendMessage(payload);
+      // Refresh starred messages after starring
+      setTimeout(() => {
+        handleConversationStarmsg();
+      }, 500);
     }
   };
 
@@ -226,7 +239,10 @@ const StartComponents = ({ navigation, route }) => {
       console.log('Unstar payload: -=-=-=-=-=-------->', payload, '\n', '\n');
 
       sendMessage(payload);
-      setMessages(prevMessages => prevMessages.filter(m => m.id !== selectedMessage.id));
+      // Refresh starred messages after unstarring
+      setTimeout(() => {
+        handleConversationStarmsg();
+      }, 500);
       setShowUnstarConfirm(false);
       setSelectedMessage(null);
     }
@@ -244,9 +260,10 @@ const StartComponents = ({ navigation, route }) => {
         isGroup={route?.params?.data?.isGroup}
         StarListing={true}
         handleStarandUnstarMessage={handleStarandUnstarMessage}
+        navigation={navigation}
       />
     ),
-    [route?.params?.data?.isGroup, handleStarandUnstarMessage],
+    [route?.params?.data?.isGroup, handleStarandUnstarMessage, navigation],
   );
 
   // console.log(

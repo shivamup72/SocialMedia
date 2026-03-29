@@ -320,7 +320,7 @@ const GroupInfoSection = ({
 
               {!modal?.user?.is_admin == true && (
                 <>
-                  <TouchableOpacity
+                  {!modal?.user?.is_admin && LoginUser?.is_admin && <TouchableOpacity
                     style={styles.modalOption}
                     onPress={() => handleMakeAdmin(GroupId, modal.user.id)}>
                     <MakeAdminIcon style={styles.modalIcon} />
@@ -329,7 +329,7 @@ const GroupInfoSection = ({
                       style={styles.modalOptionText}>
                       Make admin
                     </CustomText>
-                  </TouchableOpacity>
+                  </TouchableOpacity>}
                   {!modal?.user?.is_admin && LoginUser?.is_admin && (
                     <TouchableOpacity
                       style={styles.modalOption}

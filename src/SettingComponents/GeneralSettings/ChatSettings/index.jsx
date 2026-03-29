@@ -59,7 +59,7 @@ const ChatSettings = () => {
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: isAccordionOpen ? 8 : 0 }]}>
+    <View style={[styles.container, { paddingBottom: isAccordionOpen ? 0 : 0 }]}>
       <AccordionHeader
         title="Chat Settings"
         isOpen={isAccordionOpen}
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    padding: 10,
+    // paddingVertical: 6,
     paddingHorizontal: 16,
     paddingBottom: 0,
     shadowColor: '#000',
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
-    elevation: 5,
+    elevation: 1,
     marginTop: 15,
   },
   loaderContainer: {

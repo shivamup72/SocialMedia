@@ -13,9 +13,11 @@ import LightDeleteSvg from '../../assets/svg/LightDeleteSvg';
 import { DeleteMeetingApi, DeleteTaskApi } from '../../Api/config/TimelyApi';
 import Toast from '../../Api/context/Toast';
 import CustomText from '../../utils/CustomText';
-const HeaderComponents = ({ navigation, Type, DataList }) => {
+const HeaderComponents = ({ Type, DataList, navigation }) => {
   const HandleBack = () => {
-    navigation.goBack();
+    if (navigation && typeof navigation.goBack === 'function') {
+      navigation.goBack();
+    }
   };
 
   const toastRef = useRef(null);

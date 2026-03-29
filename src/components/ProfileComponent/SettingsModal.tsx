@@ -38,6 +38,7 @@ const SettingsModal = ({ navigation, visible, onClose, onCloseprofile, hubName, 
             hubName: hubName,
             id: Array.isArray(SelectedHub) ? SelectedHub[0]?.id : SelectedHub?.id,
             logo: SelectedHub?.logo,
+            data: SelectedHub,
         });
     };
 
@@ -58,10 +59,10 @@ const SettingsModal = ({ navigation, visible, onClose, onCloseprofile, hubName, 
                 </TouchableOpacity>
                 <View style={settingsModalStyles.settingsModalContent}>
                     <View style={settingsModalStyles.settingsContainer}>
-                        <TouchableOpacity style={settingsModalStyles.settingOption} onPress={handleGeneralSettingsNavigation}>
+                        {/* <TouchableOpacity style={settingsModalStyles.settingOption} onPress={handleGeneralSettingsNavigation}>
                             <SettingSvg width="24" height="24" color={'#222'} />
                             <CustomText style={settingsModalStyles.settingText}>General Settings</CustomText>
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
                         {/* Improved role check for Hub Admin Settings button (supports array/object) */}
                         {(() => {
                             let showAdminButton = false;

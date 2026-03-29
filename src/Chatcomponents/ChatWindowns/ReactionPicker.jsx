@@ -3,20 +3,35 @@ import { View, Text, TouchableOpacity, StyleSheet, Modal, TouchableWithoutFeedba
 import EmojiSelector, { Categories } from 'react-native-emoji-selector';
 import { RfW } from '../../utils/helper';
 import CustomText from '../../utils/CustomText';
+import LottieView from 'lottie-react-native';
 
-
-const DEFAULT_EMOJIS = ['😂', '❤️', '😮', '😢', '🙏', '👍', '👎', '🔥'];
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// Helper: get Lottie URL for emoji unicode
+function getLottieForEmoji(emoji) {
+  if (!emoji) return null;
+  const codePoints = [];
+  for (const symbol of [...emoji]) {
+    const code = symbol.codePointAt(0).toString(16);
+    codePoints.push(code);
+  }
+  const unicodeStr = codePoints.join('-');
+  return { uri: `https://fonts.gstatic.com/s/e/notoemoji/latest/${unicodeStr}/lottie.json` };
+}
+
+const DEFAULT_EMOJIS = [
+  '\ud83d\ude02', // 😂
+  // '\u2764\ufe0f', // ❤️
+  '\ud83d\ude2e', // 😮
+  '\ud83d\ude22', // 😢
+  '\ud83d\ude4f', // 🙏
+  '\ud83d\udc4d', // 👍
+  '\ud83d\udc4e', // 👎
+  '\ud83d\udd25', // 🔥
+];
 
 const ReactionPicker = ({ onSelectReaction, message, currentUserId }) => {
-  const [emojis, setEmojis] = useState(DEFAULT_EMOJIS);
   const [showEmojiSelector, setShowEmojiSelector] = useState(false);
-
-  // message.reactions is an array of objects: { id, user_id, reaction, ... }
-  // We need to highlight if the current user has reacted with this emoji
-  // Get current user id from message.currentUserId or pass as prop if needed
-  // Use currentUserId prop for accurate user context
   const reactions = message?.reactions || [];
   // Helper: check if current user has reacted with this emoji
   const isEmojiSelectedByUser = (emoji) =>
@@ -27,20 +42,18 @@ const ReactionPicker = ({ onSelectReaction, message, currentUserId }) => {
   };
 
   const handleEmojiSelected = (emoji) => {
-    if (!emojis.includes(emoji)) {
-      setEmojis(prev => {
-        const updated = [...prev, emoji];
-        return updated;
-      });
-    }
     setShowEmojiSelector(false);
     onSelectReaction(emoji, message);
   };
 
+  // Always show all default emojis, regardless of selection
+  const emojiList = DEFAULT_EMOJIS;
+
   return (
     <>
       <View style={styles.whatsappPopup}>
-        {emojis.map(emoji => {
+        {/* Render emoji reactions as Lottie animations */}
+        {emojiList.map(emoji => {
           const isSelected = isEmojiSelectedByUser(emoji);
           return (
             <TouchableOpacity
@@ -51,10 +64,16 @@ const ReactionPicker = ({ onSelectReaction, message, currentUserId }) => {
                 isSelected && styles.selectedEmojiButton
               ]}
             >
-              <CustomText style={styles.emoji}>{emoji}</CustomText>
+              <LottieView
+                source={getLottieForEmoji(emoji)}
+                autoPlay
+                loop
+                style={{ width: 32, height: 32 }}
+              />
             </TouchableOpacity>
           );
         })}
+        {/* Add emoji button */}
         <TouchableOpacity
           key="plus"
           onPress={handlePlusPress}

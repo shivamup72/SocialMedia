@@ -4,7 +4,7 @@ import { RfH, RfW } from '../utils/helper';
 import { DarkColor, DarkColor80, fonts, mainOrangeColor } from '../utils/style/fonts';
 import CustomText from '../utils/CustomText';
 
-const OnboardingModal = ({ visible, onSkip, onMainAction, buttonText = 'Start Inviting your Crew', children }) => {
+const OnboardingModal = ({ visible, onSkip, onMainAction, buttonText = 'Start Inviting your Crew', children, showSkip = true }) => {
     return (
         <Modal
             visible={visible}
@@ -28,9 +28,11 @@ const OnboardingModal = ({ visible, onSkip, onMainAction, buttonText = 'Start In
                     <TouchableOpacity style={styles.button} onPress={onMainAction || onSkip}>
                         <CustomText style={styles.buttonText}>{buttonText}</CustomText>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.skipBtn} onPress={onSkip}>
-                        <CustomText style={styles.skipText}>Skip</CustomText>
-                    </TouchableOpacity>
+                    {showSkip && (
+                        <TouchableOpacity style={styles.skipBtn} onPress={onSkip}>
+                            <CustomText style={styles.skipText}>Skip</CustomText>
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
         </Modal>

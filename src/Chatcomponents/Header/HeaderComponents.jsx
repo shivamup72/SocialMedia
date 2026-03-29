@@ -27,6 +27,7 @@ import {
 import Toast from '../../Api/context/Toast';
 import { normalize, RfH, RfW } from '../../utils/helper';
 import { GetUserIdListingApi } from '../../Api/config/HomeApi';
+import EventEmitter from '../../utils/EventEmitter';
 import AsyncStorage1 from '../../Api/config/AsyncStorage';
 import { useWebSocket } from '../../Api/context/WebSocketServices';
 import CustomText from '../../utils/CustomText';
@@ -103,9 +104,7 @@ const HeaderComponents = ({
     try {
       const userData = await AsyncStorage1.getItem('userLoginResponse');
       setUserData(userData);
-
       const userId = userData?.data?.user?.id;
-
       const response = await GetUserIdListingApi(userId, {});
       if (response?.success) {
         setGetData(response?.data);
@@ -121,6 +120,17 @@ const HeaderComponents = ({
   useEffect(() => {
     FetchData();
   }, [IsFocused]);
+
+  // Listen for profile update event to refresh data
+  useEffect(() => {
+    const onProfileUpdated = () => {
+      FetchData();
+    };
+    EventEmitter.on('profileUpdated', onProfileUpdated);
+    return () => {
+      EventEmitter.off('profileUpdated', onProfileUpdated);
+    };
+  }, []);
 
   const handleHubNameLength = () => {
     if (HubName?.length > 18) {
@@ -395,17 +405,26 @@ const styles = StyleSheet.create({
   },
 
   avatarContainer: {
-    width: RfW(44),
-    height: RfH(44),
+    // width: RfW(44),
+    // height: RfH(44),
     borderWidth: 2,
-    borderRadius: RfW(22),
+    // borderRadius: 22,
     borderColor: mainOrangeColor,
-    top: RfH(4),
+    // top: RfH(4),
+    justifyContent: 'center',
+    alignItems: 'center',
+    // backgroundColor: '#FC8C4D',
+    height: RfH(44),
+    width: RfH(44),
+    borderRadius: RfH(22),
+    position: 'relative',
   },
+
   avatarImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    resizeMode: 'contain',
+    borderRadius: RfH(22)
   },
   divider: {
     borderBottomWidth: 1,
