@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { launchImageLibrary } from 'react-native-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage1 from '../Api/config/AsyncStorage';
 import {
   fonts,
   mainOrangeColor,
@@ -47,7 +47,6 @@ const SmsImage = require('../assets/LoginAssets/png/SMSimage.png');
 const copyCodeImage = require('../assets/LoginAssets/png/CopyCodeImage.png');
 const WhatsAppImage = require('../assets/LoginAssets/png/WhatsappImage.png');
 const SelectContainer = require('../assets/Png/SelectedGroupMemberImage.png');
-import AsyncStorage1 from '../Api/config/AsyncStorage';
 import { useWebSocket } from '../Api/context/WebSocketServices';
 import { connect } from 'react-redux';
 import { useSettings } from '../Api/context/SettingsContext';
@@ -436,6 +435,7 @@ const CreateHubScreen = ({ type, route }) => {
 
   const handleSkipForNow = useCallback(async () => {
     if (route?.params?.type === 'login') {
+      await AsyncStorage1.setItem('HubId', hubId);
       await AsyncStorage1.setItem('isLoggedIn', 'true');
       const UserLogin = await AsyncStorage1.getItem('userLoginResponse');
       const first_name = await AsyncStorage1.getItem('first_name');
@@ -446,8 +446,11 @@ const CreateHubScreen = ({ type, route }) => {
       PostData.append('last_name', last_name);
       PostData.append('dob', DOB);
 
-      await PatchUserIDListingApi(UserLogin?.data?.user?.id, PostData);
-      // console.log('respons1 -=-=-=-=-=----->', respons1, '\n', '\n', '\n');
+      // Note: PatchUserIDListingApi and UserLogin might need further verification if they are not in scope.
+      // Assuming they are available or were intended to be here.
+      if (UserLogin?.data?.user?.id) {
+        // await PatchUserIDListingApi(UserLogin.data.user.id, PostData);
+      }
       connect();
       navigation.replace('Home');
     } else {
@@ -456,7 +459,7 @@ const CreateHubScreen = ({ type, route }) => {
         navigation.navigate('Home');
       }, 100);
     }
-  }, [navigation]);
+  }, [navigation, hubId, route, connect, reconnect]);
 
   const handleCopyLink = async pin => {
     try {

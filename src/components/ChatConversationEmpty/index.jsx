@@ -8,7 +8,7 @@ import {
 import CustomText from '../../utils/CustomText';
 import { RfH, RfW } from '../../utils/helper';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage1 from '../../Api/config/AsyncStorage';
 
 const ONBOARDING_SHOWN_KEY = 'ONBOARDING_SHOWN';
 
@@ -20,7 +20,7 @@ const ChatConversationEmpty = ({ text, type, marginData = 50, subText, btnText, 
     // ✅ Open WebView
     const handleOnboardingInvite = async () => {
         try {
-            await AsyncStorage.setItem(ONBOARDING_SHOWN_KEY, 'true');
+            await AsyncStorage1.setItem(ONBOARDING_SHOWN_KEY, 'true');
         } catch (e) {
             console.log('Storage error:', e);
         }

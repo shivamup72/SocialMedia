@@ -90,7 +90,7 @@ import nacl from 'tweetnacl';
 import * as naclUtil from 'tweetnacl-util';
 import CryptoJS from 'crypto-js';
 import DeviceInfo from 'react-native-device-info';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage1 from '../Api/config/AsyncStorage';
 import {Base_url} from '../Api/config/apiUrls';
 
 // ---------- Derive Workspace Key ----------
@@ -133,8 +133,8 @@ const wrapWorkspaceKey = (workspaceKey, receiverPublicKey, senderSecretKey) => {
 // ---------- Main Function ----------
 export const registerDeviceEncryptionKey = async () => {
   try {
-    const wsId = await AsyncStorage.getItem('HubId');
-    const token = await AsyncStorage.getItem('token');
+    const wsId = await AsyncStorage1.getItem('HubId');
+    const token = await AsyncStorage1.getItem('token');
 
     if (!wsId || !token) {
       console.log('WorkspaceId or token missing');

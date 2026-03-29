@@ -8,7 +8,7 @@ import {
   ImageBackground,
   Image,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage1 from '../../Api/config/AsyncStorage';
 import MyNoteScreen from './MyNotesComponents/MyNoteScreen';
 import CalenderScreen from './CalenderComponents/CalenderScreen';
 import HomeComponents from './HomeComponents/HomeComponents';
@@ -47,10 +47,10 @@ const ScreenTimely = ({ navigation }) => {
   /* -------- Show modal only once -------- */
   const checkAndShowModal = async () => {
     try {
-      const alreadyShown = await AsyncStorage.getItem(MODAL_KEY);
+      const alreadyShown = await AsyncStorage1.getItem(MODAL_KEY);
       if (!alreadyShown) {
         setIsModalVisible(true);
-        await AsyncStorage.setItem(MODAL_KEY, 'true');
+        await AsyncStorage1.setItem(MODAL_KEY, 'true');
       }
     } catch (e) {
       console.log('Modal error:', e);

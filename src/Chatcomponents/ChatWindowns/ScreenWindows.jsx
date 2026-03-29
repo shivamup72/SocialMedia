@@ -149,6 +149,16 @@ const ScreenWindows = ({ navigation, route }) => {
     message: null,
     positionY: 0,
   });
+  const [showSkeleton, setShowSkeleton] = useState(true);
+
+  // Forced 3-second skeleton timer
+  useEffect(() => {
+    setShowSkeleton(true);
+    const timer = setTimeout(() => {
+      setShowSkeleton(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [conversationId]);
   // Header height and refs for pagination and mount status
   const headerHeight = useHeaderHeight();
   const currentPageRef = useRef(1);
@@ -322,40 +332,8 @@ const ScreenWindows = ({ navigation, route }) => {
         payload.group_id = route?.params?.GroupId;
       }
 
-      // Wrap sendMessage to intercept and sync messages to SQLite
-      const originalSendMessage = sendMessage;
-      const handleServerMessages = (serverMessages) => {
-        // Save all messages to SQLite
-        serverMessages.forEach(msg => {
-          insertMessage({
-            id: msg.id,
-            conversation_id: msg.conversation_id,
-            sender_id: msg.sender_id,
-            content: msg.content,
-            created_at: msg.created_at,
-            status: msg.status,
-            is_group: msg.is_group,
-            extra: msg,
-          });
-        });
-        // After saving, fetch all messages for this conversation from SQLite
-        getMessages(payload.conversation_id, route?.params?.isGroup, (sqliteMessages) => {
-          // Build a map for quick lookup
-          const sqliteMap = {};
-          sqliteMessages.forEach(m => { sqliteMap[m.id] = m; });
-          // Merge: prefer SQLite data if available
-          const merged = serverMessages.map(msg =>
-            sqliteMap[msg.id] ? { ...msg, ...sqliteMap[msg.id], extra: sqliteMap[msg.id].extra } : msg
-          );
-          setMessages(deduplicateMessages(merged));
-          setLoading(false);
-          setInitialLoading(false);
-        });
-      };
-
-      // Intercept the server response (assumes sendMessage returns a promise or can be hooked)
-      // If not, you may need to hook into your websocket or API response handler
-      originalSendMessage(payload, handleServerMessages);
+      // Send the request. Response will be handled in a useEffect
+      sendMessage(payload);
     },
     [
       isConnected,
@@ -387,7 +365,25 @@ const ScreenWindows = ({ navigation, route }) => {
     }
     return uniqueMessages;
   }, []);
-  // Only load messages on first mount or when conversationId changes
+  // Load messages from SQLite on mount
+  useEffect(() => {
+    if (conversationId) {
+      console.log('[ScreenWindows] Initial load from SQLite for:', conversationId);
+      getMessages(conversationId, route?.params?.isGroup, (sqliteMessages) => {
+        if (sqliteMessages && sqliteMessages.length > 0) {
+          const normalized = sqliteMessages.map(m => ({
+            ...m,
+            content: m.content, // content in SQLite is already the text or stringified object
+            ...JSON.parse(m.extra || '{}') // Merge back all server fields
+          }));
+          setMessages(prev => deduplicateMessages([...normalized, ...prev]));
+          setInitialLoading(false);
+        }
+      });
+    }
+  }, [conversationId]);
+
+  // Load pending messages and join WS logic
   useEffect(() => {
     if (
       isConnected &&
@@ -401,7 +397,6 @@ const ScreenWindows = ({ navigation, route }) => {
       isScrolledUp.current = false;
       loadMessages(1);
       loadedConversationId.current = conversationId;
-      // Load all messages from SQLite for this conversation
 
       // Load pending messages from SQLite and add to UI
       getPendingMessages((pendingMessages) => {
@@ -409,10 +404,8 @@ const ScreenWindows = ({ navigation, route }) => {
           setMessages(prev => deduplicateMessages([
             ...pendingMessages.map(m => ({
               ...m,
-              // Mark as optimistic/pending for UI
               optimistic: true,
               status: [{ status: 'pending' }],
-              // Parse content if it's a stringified object
               content: (() => {
                 try {
                   const parsed = JSON.parse(m.content);
@@ -433,8 +426,6 @@ const ScreenWindows = ({ navigation, route }) => {
       setInitialLoading(false);
       loadedConversationId.current = null;
     }
-    // Do not reload messages on every focus
-    // eslint-disable-next-line
   }, [conversationId, isConnected, route?.params?.muted]);
   // Deduplicate messages by id after loading from backend
   useEffect(() => {
@@ -713,6 +704,25 @@ const ScreenWindows = ({ navigation, route }) => {
     // Handle full message list
     if (lastMessage?.data?.messages) {
       const fetchedMessages = lastMessage?.data?.messages?.map(normalizeMessage);
+      
+      // Save bulk messages to SQLite
+      lastMessage?.data?.messages?.forEach(msg => {
+        try {
+          insertMessage({
+            id: msg.id?.toString(),
+            conversation_id: msg.conversation_id || msg.conversation?.id || conversationId || '',
+            sender_id: msg.sender_id || msg.sender?.id || '',
+            content: msg.content || msg.system_message || '',
+            created_at: msg.created_at,
+            status: msg.status || 'received',
+            is_group: !!route?.params?.isGroup,
+            extra: msg,
+          });
+        } catch (err) {
+          console.log('[ScreenWindows] Error persisting bulk message:', err);
+        }
+      });
+
       setLoading(false);
       setInitialLoading(false);
       if (fetchedMessages?.length < PAGE_SIZE) {
@@ -1567,119 +1577,117 @@ const ScreenWindows = ({ navigation, route }) => {
         {renderPinnedBanner()}
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
           <View style={{ flex: 1 }}>
-            <Pressable style={{ flex: 1 }} onPress={dismissReactionPicker}>
-              <FlashList
-                ref={flatListRef}
-                data={messagesWithSeparators}
-                renderItem={renderMessageItem}
-                keyExtractor={item => item._id || String(item.id)}
-                showsVerticalScrollIndicator={false}
-                inverted
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="interactive"
-                style={styles.messageList}
-                contentContainerStyle={styles.messageListContainer}
-                onEndReached={handleLoadMore}
-                onEndReachedThreshold={0.1}
-                extraData={selectedMessages}
-                ListFooterComponent={
-                  loading && page > 1 ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={mainOrangeColor}
-                      style={styles.loader}
-                    />
-                  ) : null
-                }
-                ListEmptyComponent={
-                  initialLoading && messages.length === 0 ? (
-                    // Show skeleton loader during initial load
-                    <View style={styles.skeletonContainer}>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((item, index) => (
-                        <View key={index} style={[
-                          styles.skeletonMessage,
-                          index % 2 === 0 && styles.skeletonMessageRight
-                        ]}>
-                          {index % 2 === 0 ? (
-                            // Right side (sent message)
-                            <>
-                              <View style={styles.skeletonContentRight}>
-                                <View style={[styles.skeletonBubble, styles.skeletonBubbleRight]} />
-                                <View style={styles.skeletonTimeRight} />
-                              </View>
-                            </>
-                          ) : (
-                            // Left side (received message)
-                            <>
-                              <View style={styles.skeletonAvatar} />
-                              <View style={styles.skeletonContent}>
-                                <View style={styles.skeletonBubble} />
-                                <View style={styles.skeletonTime} />
-                              </View>
-                            </>
-                          )}
+            {showSkeleton ? (
+              <View style={[styles.skeletonContainer, { paddingHorizontal: 12, paddingTop: 8 }]}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((item, index) => (
+                  <View key={index} style={[
+                    styles.skeletonMessage,
+                    index % 2 === 0 && styles.skeletonMessageRight
+                  ]}>
+                    {index % 2 === 0 ? (
+                      <View style={styles.skeletonContentRight}>
+                        <View style={[styles.skeletonBubble, styles.skeletonBubbleRight]} />
+                        <View style={styles.skeletonTimeRight} />
+                      </View>
+                    ) : (
+                      <>
+                        <View style={styles.skeletonAvatar} />
+                        <View style={styles.skeletonContent}>
+                          <View style={styles.skeletonBubble} />
+                          <View style={styles.skeletonTime} />
                         </View>
-                      ))}
-                    </View>
-                  ) : !loading && messages.length === 0 ? (
-                    <View style={[styles.emptyContainerContent, { transform: [{ scaleX: -1 },] }]}>
-                      <CustomText style={[styles.noMessagesText, { transform: [{ scaleY: -1 }] }]}>No messages yet</CustomText>
-                    </View>
-                  ) : null
-                }
-                estimatedItemSize={70}
-                onScrollToIndexFailed={info => {
-                  const wait = new Promise(resolve => setTimeout(resolve, 500));
-                  wait.then(() => {
-                    flatListRef.current?.scrollToIndex({
-                      index: info.index,
-                      animated: true,
-                    });
-                  });
-                }}
-                onContentSizeChange={() => {
-                  if (
-                    currentPageRef.current === 1 &&
-                    !isScrolledUp.current &&
-                    messages.length > 0
-                  ) {
-                    flatListRef.current?.scrollToOffset({
-                      offset: 0,
-                      animated: false,
-                    });
-                  }
-                }}
-                onScroll={onScroll}
-              />
-            </Pressable>
-            {/* Floating Down Arrow Button */}
-            {showScrollToBottom && (
-              <Pressable
-                style={styles.scrollToBottomButton}
-                onPress={() => {
-                  flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-                }}
-                accessibilityLabel="Scroll to latest message"
-              >
-                <DownArrowSvg width={22} height={22} color={'#FF8C00'} />
-              </Pressable>
-            )}
-            {/* <View style={{ maxHeight: 120, backgroundColor: 'transparent', minHeight: 140 }}> */}
-            <ChatInputBar
-              onSend={handleSend}
-              selectedMessage={selectedMessages && selectedMessages.length > 0 ? selectedMessages[0] : null}
-              ReplyCheck={ReplyCheck}
-              setReplyCheck={setReplyCheck}
-              isGroup={route?.params?.isGroup}
-              GroupId={route?.params?.GroupId}
-              setSelectedMessage={setSelectedMessages}
-              setEditmessagestatus={setEditmessagestatus}
-              editmessagestatus={Editmessagestatus}
-              onEditMessage={handleEditMessage}
-              onMediaSent={msg => setMessages(prev => [msg, ...prev])}
-            />
-            {/* </View> */}
+                      </>
+                    )}
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={{ flex: 1 }}>
+                <Pressable style={{ flex: 1 }} onPress={dismissReactionPicker}>
+                  <FlashList
+                    ref={flatListRef}
+                    data={messagesWithSeparators}
+                    renderItem={renderMessageItem}
+                    keyExtractor={item => item._id || String(item.id)}
+                    showsVerticalScrollIndicator={false}
+                    inverted
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="interactive"
+                    style={styles.messageList}
+                    contentContainerStyle={styles.messageListContainer}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.1}
+                    extraData={selectedMessages}
+                    ListFooterComponent={
+                      loading && page > 1 ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={mainOrangeColor}
+                          style={styles.loader}
+                        />
+                      ) : null
+                    }
+                    ListEmptyComponent={
+                      !loading && messages.length === 0 ? (
+                        <View style={[styles.emptyContainerContent, { transform: [{ scaleX: -1 }] }]}>
+                          <CustomText style={[styles.noMessagesText, { transform: [{ scaleY: -1 }] }]}>No messages yet</CustomText>
+                        </View>
+                      ) : null
+                    }
+                    estimatedItemSize={70}
+                    onScrollToIndexFailed={info => {
+                      const wait = new Promise(resolve => setTimeout(resolve, 500));
+                      wait.then(() => {
+                        flatListRef.current?.scrollToIndex({
+                          index: info.index,
+                          animated: true,
+                        });
+                      });
+                    }}
+                    onContentSizeChange={() => {
+                      if (
+                        currentPageRef.current === 1 &&
+                        !isScrolledUp.current &&
+                        messages.length > 0
+                      ) {
+                        flatListRef.current?.scrollToOffset({
+                          offset: 0,
+                          animated: false,
+                        });
+                      }
+                    }}
+                    onScroll={onScroll}
+                  />
+                </Pressable>
 
+                {/* Floating Down Arrow Button */}
+                {showScrollToBottom && (
+                  <Pressable
+                    style={styles.scrollToBottomButton}
+                    onPress={() => {
+                      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+                    }}
+                    accessibilityLabel="Scroll to latest message"
+                  >
+                    <DownArrowSvg width={22} height={22} color={'#FF8C00'} />
+                  </Pressable>
+                )}
+
+                <ChatInputBar
+                  onSend={handleSend}
+                  selectedMessage={selectedMessages && selectedMessages.length > 0 ? selectedMessages[0] : null}
+                  ReplyCheck={ReplyCheck}
+                  setReplyCheck={setReplyCheck}
+                  isGroup={route?.params?.isGroup}
+                  GroupId={route?.params?.GroupId}
+                  setSelectedMessage={setSelectedMessages}
+                  setEditmessagestatus={setEditmessagestatus}
+                  editmessagestatus={Editmessagestatus}
+                  onEditMessage={handleEditMessage}
+                  onMediaSent={msg => setMessages(prev => [msg, ...prev])}
+                />
+              </View>
+            )}
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>

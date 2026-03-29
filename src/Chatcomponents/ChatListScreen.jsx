@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, memo, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage1 from '../Api/config/AsyncStorage';
 import OnboardingModal from '../components/OnboardingModal';
 import {
   StyleSheet,
@@ -37,6 +37,7 @@ import ScreenView from '../utils/ScreenView';
 import CustomText from '../utils/CustomText';
 import { registerDeviceEncryptionKey } from '../utils/E2EEWorkspaceComponent';
 import ChatConversationEmpty from '../components/ChatConversationEmpty';
+import { getConversations, insertConversation } from '../utils/chatSQLite';
 
 const ONBOARDING_SHOWN_KEY = 'chatlist_onboarding_shown';
 
@@ -52,7 +53,7 @@ const ChatListScreen = ({ SearchValue, setHideTabBar, route }) => {
     // Check if onboarding modal has been shown before
     const checkOnboarding = async () => {
       try {
-        const value = await AsyncStorage.getItem(ONBOARDING_SHOWN_KEY);
+        const value = await AsyncStorage1.getItem(ONBOARDING_SHOWN_KEY);
 
         if (!value) {
           setShowOnboarding(true);
@@ -68,7 +69,7 @@ const ChatListScreen = ({ SearchValue, setHideTabBar, route }) => {
   const handleSkipOnboarding = async () => {
     setShowOnboarding(false);
     try {
-      await AsyncStorage.setItem(ONBOARDING_SHOWN_KEY, 'true');
+      await AsyncStorage1.setItem(ONBOARDING_SHOWN_KEY, 'true');
     } catch (e) {
       // ignore
     }
@@ -78,7 +79,7 @@ const ChatListScreen = ({ SearchValue, setHideTabBar, route }) => {
   const handleOnboardingInvite = async () => {
     setShowOnboarding(false);
     try {
-      await AsyncStorage.setItem(ONBOARDING_SHOWN_KEY, 'true');
+      await AsyncStorage1.setItem(ONBOARDING_SHOWN_KEY, 'true');
     } catch (e) { }
     navigation.navigate('InAppWebView', { url: 'https://riggle-x.com/' });
   };
@@ -97,6 +98,16 @@ const ChatListScreen = ({ SearchValue, setHideTabBar, route }) => {
   const [expandedId, setExpandedId] = useState(null);
   // State for avatar preview modal
   const [previewAvatar, setPreviewAvatar] = useState(null);
+ 
+  // Load conversations from SQLite on mount
+  useEffect(() => {
+    getConversations((localConversations) => {
+      if (localConversations && localConversations.length > 0) {
+        console.log('[ChatListScreen] Loaded from SQLite:', localConversations.length);
+        setConversations(localConversations);
+      }
+    });
+  }, []);
 
 
   // Always get the latest unread conversation from all conversations, not just filtered
@@ -245,13 +256,20 @@ const ChatListScreen = ({ SearchValue, setHideTabBar, route }) => {
     } else if (lastMessage?.data?.conversations) {
       // Log the full backend response for debugging
       // console.log('Backend conversations response:', JSON.stringify(lastMessage?.data?.conversations, null, 2));
+      const serverConversations = lastMessage?.data?.conversations || [];
       setConversations(prev => {
-        if (pagination.page === 1) {
-          return lastMessage?.data?.conversations || [];
-        }
-        return [...prev, ...(lastMessage?.data?.conversations || [])];
+        const updated = pagination.page === 1
+          ? serverConversations
+          : [...prev, ...serverConversations];
+        
+        // Save to SQLite
+        serverConversations.forEach(conv => {
+          insertConversation(conv);
+        });
+        
+        return updated;
       });
-
+ 
       if (lastMessage?.data?.pagination) {
         setPagination(prev => ({
           ...prev,

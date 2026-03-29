@@ -26,7 +26,7 @@ import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import HRMSControls from './HRMSControls/index';
 import AdminControls from './AdminControls/index';
 import { PatchCreateWorkSpaceApiId } from '../Api/config/HomeApi';
-import AsyncStorage1 from '@react-native-async-storage/async-storage';
+import AsyncStorage1 from '../Api/config/AsyncStorage';
 import CloseSvg from '../assets/svg/CloseSvg';
 import { useSettings } from '../Api/context/SettingsContext';
 import ChatPermissions from './ChatPermissions';

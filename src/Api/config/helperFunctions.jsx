@@ -1,12 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import FlashMessage, {showMessage} from 'react-native-flash-message';
 import AsyncStorage1 from './AsyncStorage';
 import mime from 'mime';
 
-async function checkLoginStatus() {
+export async function checkLoginStatus() {
   try {
     const session = await AsyncStorage1.getItem('isLoggedIn');
-    if (session === 'true') {
+    if (session === 'true' || session === true) {
       return session;
     } else {
       return null;
@@ -19,8 +18,8 @@ async function checkLoginStatus() {
 export async function loggedIn() {
   try {
     const session = await AsyncStorage1.getItem('isLoggedIn');
-    if (session === 'true') {
-      return session.stringify;
+    if (session === 'true' || session === true) {
+      return session;
     } else {
       return null;
     }
@@ -31,11 +30,7 @@ export async function loggedIn() {
 
 export const storeData = async (key, value) => {
   try {
-    var jsonValue = value;
-    if (typeof value !== 'string') {
-      jsonValue = JSON.stringify(value);
-    }
-    await AsyncStorage.setItem(key, jsonValue);
+    await AsyncStorage1.setItem(key, value);
   } catch (e) {
     return e;
   }
@@ -43,12 +38,8 @@ export const storeData = async (key, value) => {
 
 export const getData = async key => {
   try {
-    const res = await AsyncStorage.getItem(key);
-    return res != null
-      ? typeof res !== 'string'
-        ? JSON.parse(res)
-        : res
-      : null;
+    const res = await AsyncStorage1.getItem(key);
+    return res;
   } catch (e) {
     return e;
     // error reading value

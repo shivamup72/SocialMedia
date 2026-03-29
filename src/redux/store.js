@@ -1,7 +1,7 @@
 // src/redux/store.js
 import {configureStore, combineReducers} from '@reduxjs/toolkit';
 import {persistStore, persistReducer} from 'redux-persist';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import sqliteStorage from '../utils/sqliteStorage';
 import authReducer from './slices/authSlice';
 import replyCountReducer from './slices/replyCountSlice';
 
@@ -12,7 +12,7 @@ const rootReducer = combineReducers({
 
 const persistConfig = {
   key: 'root',
-  storage: AsyncStorage,
+  storage: sqliteStorage,
   whitelist: ['auth', 'replyCount'], // auth and replyCount will persist
 };
 

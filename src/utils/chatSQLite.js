@@ -83,6 +83,24 @@ export const initChatTable = () => {
         console.log('[chatSQLite] Error creating messages table:', error);
       },
     );
+    tx.executeSql(
+      `CREATE TABLE IF NOT EXISTS conversations (
+        conversation_id TEXT PRIMARY KEY NOT NULL,
+        chat_name TEXT,
+        chat_email TEXT,
+        chat_avatar TEXT,
+        is_group INTEGER,
+        unread_count INTEGER,
+        last_message TEXT
+      );`,
+      [],
+      () => {
+        console.log('[chatSQLite] conversations table ensured/created');
+      },
+      (tx, error) => {
+        console.log('[chatSQLite] Error creating conversations table:', error);
+      },
+    );
   });
 };
 // Ensure table is created on import
@@ -198,6 +216,49 @@ export const getPendingMessages = callback => {
 export const updateMessageStatus = (id, status) => {
   db.transaction(tx => {
     tx.executeSql(`UPDATE messages SET status = ? WHERE id = ?;`, [status, id]);
+  });
+};
+
+export const insertConversation = conversation => {
+  db.transaction(tx => {
+    tx.executeSql(
+      `INSERT OR REPLACE INTO conversations (conversation_id, chat_name, chat_email, chat_avatar, is_group, unread_count, last_message) VALUES (?, ?, ?, ?, ?, ?, ?);`,
+      [
+        conversation.conversation_id,
+        conversation.chat_name,
+        conversation.chat_email,
+        conversation.chat_avatar,
+        conversation.is_group ? 1 : 0,
+        conversation.unread_count || 0,
+        JSON.stringify(conversation.last_message || {}),
+      ],
+    );
+  });
+};
+
+export const getConversations = callback => {
+  db.transaction(tx => {
+    tx.executeSql(
+      `SELECT * FROM conversations;`,
+      [],
+      (tx, results) => {
+        const rows = results.rows;
+        let conversations = [];
+        for (let i = 0; i < rows.length; i++) {
+          const item = rows.item(i);
+          conversations.push({
+            ...item,
+            is_group: !!item.is_group,
+            last_message: JSON.parse(item.last_message || '{}'),
+          });
+        }
+        callback(conversations);
+      },
+      (tx, error) => {
+        console.log('[chatSQLite] Error fetching conversations:', error);
+        callback([]);
+      },
+    );
   });
 };
 
